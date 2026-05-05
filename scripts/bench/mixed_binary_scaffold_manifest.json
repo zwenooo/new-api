@@ -1,0 +1,39 @@
+{
+  "required_files": [
+    "old-binary-identity.txt",
+    "new-binary-identity.txt",
+    "README.md",
+    "topology.json",
+    "topology.template.json",
+    "commands.template.sh",
+    "preflight-local.template.sh",
+    "capture-runtime.template.sh",
+    "archive.template.sh",
+    "finalize-evidence.template.sh",
+    "checklist.md",
+    "artifact-manifest.template.md",
+    "deviation-log.template.md",
+    "cache-revision-check.template.md",
+    "option-sync-check.template.md",
+    "result-summary.generated.md",
+    "result-summary.template.md"
+  ],
+  "expected_doc_artifacts": [
+    "topology.template.json",
+    "commands.template.sh",
+    "preflight-local.template.sh",
+    "capture-runtime.template.sh",
+    "archive.template.sh",
+    "finalize-evidence.template.sh",
+    "checklist.md",
+    "artifact-manifest.template.md",
+    "deviation-log.template.md",
+    "cache-revision-check.template.md",
+    "option-sync-check.template.md",
+    "result-summary.generated.md",
+    "result-summary.template.md",
+    "prepare_mixed_binary_evidence.py",
+    "generate_mixed_binary_result_summary.py",
+    "validate_mixed_binary_evidence.py"
+  ]
+}

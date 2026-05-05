@@ -1,0 +1,45 @@
+{{define "log_full"}}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{if .Instance}}实例 {{.Instance.ID}}{{if .Instance.Name}} · {{.Instance.Name}}{{end}} 的日志{{else}}实例日志{{end}}</title>
+  <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+  <style>
+    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f1f5f9; color: #0f172a; }
+    .container { width: 90%; max-width: 90%; margin: 0 auto; }
+    .header { background: #1e293b; color: #f8fafc; padding: 16px 0; box-shadow: 0 10px 25px -18px rgba(15,23,42,.45); }
+    .titlebar { display:flex; align-items:center; justify-content:space-between; }
+    .card { background:#fff; border:1px solid #e2e8f0; border-radius: 8px; padding: 12px; }
+    .mt-4 { margin-top: 1rem; }
+    .mb-4 { margin-bottom: 1rem; }
+    pre { margin:0; font-family: ui-monospace, SFMono-Regular, Consolas, Menlo, monospace; white-space: pre-wrap; }
+  </style>
+  <script></script>
+  </head>
+  <body>
+    <div class="header">
+      <div class="container">
+        <div class="titlebar">
+          <div style="font-size:18px; font-weight:600;">Codex Service · 实例日志（手动刷新）</div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            {{if .Instance}}<button id="refresh-btn" class="primary" style="background:#334155; color:#f8fafc; padding:6px 10px; border-radius:8px;" hx-get="{{mount "/admin/instances"}}/{{.Instance.ID}}/log/raw" hx-target="#log-pre" hx-swap="outerHTML">刷新</button>{{end}}
+          </div>
+        </div>
+      </div>
+    </div>
+    <main class="container">
+      <div class="mb-4" style="margin-top:16px; display:flex; align-items:center; justify-content:space-between;">
+        <h2 style="margin:0; font-size:18px; font-weight:600;">
+          {{if .Instance}}实例 {{.Instance.ID}}{{if .Instance.Name}} · {{.Instance.Name}}{{end}} 的日志{{else}}实例日志{{end}}
+        </h2>
+        <div></div>
+      </div>
+      <div id="log-content" class="card mt-4" style="max-height: 80vh; overflow:auto;">
+        <pre id="log-pre" hx-get="{{mount "/admin/instances"}}/{{.Instance.ID}}/log/raw" hx-trigger="load" hx-target="#log-pre" hx-swap="outerHTML">加载中…</pre>
+      </div>
+    </main>
+  </body>
+</html>
+{{end}}

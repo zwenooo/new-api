@@ -1,0 +1,43 @@
+{{define "debug_bulk_form"}}
+<div class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+  <div class="bg-white rounded shadow-lg w-full max-w-lg">
+    <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+      <h3 class="text-lg font-semibold">批量调试设置（{{.Count}} 个实例）</h3>
+      <button type="button" class="btn px-2 py-1 text-sm" hx-get="{{mount "/admin/close"}}" hx-target="#modal" hx-swap="innerHTML">✕</button>
+    </div>
+    <form class="px-6 py-4 space-y-4" hx-post="{{mount "/admin/instances/bulk/debug"}}?state={{.ActiveTab}}&view={{.ViewMode}}" hx-target="#instances-table" hx-swap="outerHTML">
+      {{range .IDs}}
+      <input type="hidden" name="ids" value="{{.}}">
+      {{end}}
+
+      <div class="flex flex-col gap-2">
+        <label class="inline-flex items-center gap-2 text-sm" style="cursor:pointer;">
+          <input type="checkbox" name="enable" value="true" class="rounded border-slate-300" checked>
+          启用调试
+        </label>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <div class="text-sm font-medium text-slate-700">隐藏内容</div>
+        <label class="inline-flex items-center gap-2 text-sm" style="cursor:pointer;">
+          <input type="checkbox" name="hide_event_data" value="true" class="rounded border-slate-300" checked>
+          隐藏 <code>event:</code> / <code>data:</code>（SSE）
+        </label>
+        <label class="inline-flex items-center gap-2 text-sm" style="cursor:pointer;">
+          <input type="checkbox" name="hide_req_headers" value="true" class="rounded border-slate-300">
+          隐藏 <code>REQ HDR</code>
+        </label>
+        <label class="inline-flex items-center gap-2 text-sm" style="cursor:pointer;">
+          <input type="checkbox" name="hide_req_body" value="true" class="rounded border-slate-300">
+          隐藏 <code>REQ BODY</code>
+        </label>
+      </div>
+
+      <div class="flex justify-end space-x-3 pt-2">
+        <button type="button" class="btn px-4 py-2 text-sm" hx-get="{{mount "/admin/close"}}" hx-target="#modal" hx-swap="innerHTML">取消</button>
+        <button type="submit" class="btn px-4 py-2 text-sm">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}

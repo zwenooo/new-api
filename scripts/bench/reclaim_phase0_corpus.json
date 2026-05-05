@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "description": "Fixed request corpus for reclaim benchmarking and parity checks",
+  "requests": [
+    {
+      "id": "chat-completions",
+      "kind": "http",
+      "method": "POST",
+      "path": "/v1/chat/completions",
+      "content_type": "application/json",
+      "body": {
+        "model": "gpt-4.1-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Reply with the single word OK."
+          }
+        ],
+        "max_tokens": 8
+      }
+    },
+    {
+      "id": "messages",
+      "kind": "http",
+      "method": "POST",
+      "path": "/v1/messages",
+      "content_type": "application/json",
+      "body": {
+        "model": "claude-3-5-sonnet",
+        "max_tokens": 32,
+        "messages": [
+          {
+            "role": "user",
+            "content": "Reply with the single word OK."
+          }
+        ]
+      }
+    },
+    {
+      "id": "responses",
+      "kind": "http",
+      "method": "POST",
+      "path": "/v1/responses",
+      "content_type": "application/json",
+      "body": {
+        "model": "gpt-4.1-mini",
+        "input": "Reply with the single word OK."
+      }
+    },
+    {
+      "id": "responses-compact",
+      "kind": "http",
+      "method": "POST",
+      "path": "/v1/responses/compact",
+      "content_type": "application/json",
+      "body": {
+        "model": "gpt-4.1-mini",
+        "input": "Reply with the single word OK."
+      }
+    },
+    {
+      "id": "responses-websocket",
+      "kind": "manual",
+      "path": "/v1/responses",
+      "notes": "WebSocket coverage remains a manual or specialized harness lane in Phase 0."
+    },
+    {
+      "id": "task-submit-fetch",
+      "kind": "manual",
+      "path": "/suno/submit/:action + /suno/fetch/:id",
+      "notes": "Task flow coverage remains a manual or specialized harness lane in Phase 0."
+    }
+  ]
+}

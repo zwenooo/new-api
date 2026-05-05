@@ -1,0 +1,53 @@
+{{define "admin_list.html"}}{{template "base" .}}{{end}}
+{{define "title"}}Instances · Codex Service{{end}}
+{{define "content"}}
+<section class="bg-white shadow rounded p-6 space-y-5">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+            <h2 class="text-xl font-semibold text-slate-900">实例管理</h2>
+            <div class="mt-1 text-sm text-slate-600 space-y-1">
+                <div>
+                    <span class="text-slate-500">请求基址：</span>
+                    <code id="sample-base">{{.SampleBase}}</code>
+                    <button class="btn px-2 py-1 text-xs" onclick="copyText(document.getElementById('sample-base').innerText, this, event)">复制</button>
+                </div>
+                <div>
+                    <span class="text-slate-500">内部 Token：</span>
+                    {{if .Embedded}}
+                    <span class="text-slate-400">（内嵌模式：无需 Token）</span>
+                    {{else}}
+                    {{if .ServiceToken}}
+                    <code id="svc-token" class="truncate" style="max-width:20rem; display:inline-block;">{{.ServiceToken}}</code>
+                    <button class="btn px-2 py-1 text-xs" onclick="copyText(document.getElementById('svc-token').innerText, this, event)">复制</button>
+                    {{else}}
+                    <span class="text-slate-400">(未配置 TOKEN)</span>
+                    {{end}}
+                    {{end}}
+                </div>
+            </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <button class="btn px-3 py-2" hx-get="{{mount "/admin/auth/bulk"}}" hx-target="#modal" hx-trigger="click">新增实例 / 导入 auth.json</button>
+            <a class="btn px-3 py-2" href="{{mount "/admin/auth/export"}}">导出全部 auth.json</a>
+            {{if .EnvFormEnabled}}
+            <button class="btn px-3 py-2" hx-get="{{mount "/admin/env"}}" hx-target="#modal" hx-trigger="click">配置（.env）</button>
+            {{end}}
+            {{if .AuthEnabled}}
+            <button type="button" class="btn btn-danger px-3 py-2" hx-post="{{mount "/admin/restart"}}" hx-confirm="确认重启服务？" hx-swap="none">重启服务</button>
+            {{end}}
+            <button type="button" class="btn px-3 py-2" onclick="document.body.dispatchEvent(new Event('refreshInstances'))">刷新列表</button>
+        </div>
+    </div>
+
+    <!-- 介绍内容移除 -->
+
+    <div id="refresh-status" class="mt-3" hx-get="{{mount "/admin/refresh/status"}}" hx-trigger="load" hx-swap="outerHTML"></div>
+
+    <div class="mt-4">
+        <div id="instances-table" class="mt-3" hx-get="{{mount "/admin/instances/table"}}" hx-trigger="load, refreshInstances" hx-swap="outerHTML"></div>
+    </div>
+</section>
+
+<div id="modal"></div>
+<div hx-get="{{mount "/admin/close"}}" hx-trigger="closeModal from:body" hx-target="#modal"></div>
+{{end}}

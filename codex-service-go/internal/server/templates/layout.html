@@ -1,0 +1,1062 @@
+{{define "base"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{block "title" .}}Codex Service Admin{{end}}</title>
+    <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+    <style>
+        :root {
+            --slate-50: #f8fafc;
+            --slate-100: #f1f5f9;
+            --slate-200: #e2e8f0;
+            --slate-300: #cbd5f5;
+            --slate-400: #94a3b8;
+            --slate-500: #64748b;
+            --slate-600: #475569;
+            --slate-700: #334155;
+            --slate-800: #1e293b;
+            --slate-900: #0f172a;
+            --emerald-600: #059669;
+            --emerald-200: #a7f3d0;
+            --emerald-800: #065f46;
+            --amber-500: #f59e0b;
+            --amber-200: #fde68a;
+            --amber-800: #92400e;
+            --indigo-500: #6366f1;
+            --red-500: #ef4444;
+            --red-600: #dc2626;
+            --sky-600: #0284c7;
+            --emerald-500: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--slate-100);
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: var(--slate-900);
+            margin: 0;
+        }
+
+        a {
+            color: inherit;
+        }
+
+        .container {
+            /* 内容区占屏幕 90% 宽度 */
+            width: 90%;
+            max-width: 90%;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .mx-auto {
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .px-4 {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+
+        .py-4 {
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+
+        .py-6 {
+            padding-top: 1.5rem;
+            padding-bottom: 1.5rem;
+        }
+
+        .p-6 {
+            padding: 1.5rem;
+        }
+
+        .mt-3 {
+            margin-top: 0.75rem;
+        }
+
+        .mt-4 {
+            margin-top: 1rem;
+        }
+
+        .mb-4 {
+            margin-bottom: 1rem;
+        }
+
+        .space-y-5 > * + * {
+            margin-top: 1.25rem;
+        }
+
+        .flex {
+            display: flex;
+        }
+
+        .flex-1 {
+            flex: 1;
+        }
+
+        .inline-flex {
+            display: inline-flex;
+        }
+
+        .flex-col {
+            flex-direction: column;
+        }
+
+        .flex-wrap {
+            flex-wrap: wrap;
+        }
+
+        .items-center {
+            align-items: center;
+        }
+
+        .justify-between {
+            justify-content: space-between;
+        }
+
+        .justify-end {
+            justify-content: flex-end;
+        }
+
+        .gap-1 {
+            gap: 0.25rem;
+        }
+
+        .gap-2 {
+            gap: 0.5rem;
+        }
+
+        .gap-3 {
+            gap: 0.75rem;
+        }
+
+        .gap-4 {
+            gap: 1rem;
+        }
+
+        .gap-6 {
+            gap: 1.5rem;
+        }
+
+        .rounded {
+            border-radius: 0.5rem;
+        }
+
+        .rounded-lg {
+            border-radius: 0.75rem;
+        }
+
+        .rounded-full {
+            border-radius: 9999px;
+        }
+
+        .bg-white {
+            background-color: #ffffff;
+        }
+
+        .bg-slate-50 {
+            background-color: var(--slate-50);
+        }
+
+        .bg-slate-100 {
+            background-color: var(--slate-100);
+        }
+
+        .bg-slate-200 {
+            background-color: var(--slate-200);
+        }
+
+        .bg-slate-800 {
+            background-color: var(--slate-800);
+        }
+
+        .bg-slate-900 {
+            background-color: var(--slate-900);
+        }
+
+        .bg-indigo-500 {
+            background-color: var(--indigo-500);
+        }
+
+        .bg-emerald-500 {
+            background-color: var(--emerald-500);
+        }
+
+        .bg-emerald-600 {
+            background-color: var(--emerald-600);
+        }
+
+        .bg-emerald-200 {
+            background-color: var(--emerald-200);
+        }
+
+        .bg-amber-500 {
+            background-color: var(--amber-500);
+        }
+
+        .bg-amber-200 {
+            background-color: var(--amber-200);
+        }
+
+        .bg-red-500 {
+            background-color: var(--red-500);
+        }
+
+        .text-white {
+            color: #ffffff;
+        }
+
+        .text-slate-900 {
+            color: var(--slate-900);
+        }
+
+        .text-slate-700 {
+            color: var(--slate-700);
+        }
+
+        .text-slate-600 {
+            color: var(--slate-600);
+        }
+
+        .text-slate-500 {
+            color: var(--slate-500);
+        }
+
+        .text-slate-400 {
+            color: var(--slate-400);
+        }
+
+        .text-emerald-600 {
+            color: var(--emerald-600);
+        }
+
+        .text-emerald-800 {
+            color: var(--emerald-800);
+        }
+
+        .text-sky-600 {
+            color: var(--sky-600);
+        }
+
+        .text-amber-800 {
+            color: var(--amber-800);
+        }
+
+        .text-red-600 {
+            color: var(--red-600);
+        }
+
+        .text-xs {
+            font-size: 0.75rem;
+        }
+
+        .text-sm {
+            font-size: 0.875rem;
+        }
+
+        .text-base {
+            font-size: 1rem;
+        }
+
+        .text-xl {
+            font-size: 1.25rem;
+        }
+
+        .text-2xl {
+            font-size: 1.5rem;
+        }
+
+        .font-semibold {
+            font-weight: 600;
+        }
+
+        .font-medium {
+            font-weight: 500;
+        }
+
+        .uppercase {
+            text-transform: uppercase;
+        }
+
+        .shadow {
+            box-shadow: 0 10px 25px -15px rgba(15, 23, 42, 0.5);
+        }
+
+        .shadow-lg {
+            box-shadow: 0 20px 35px -20px rgba(15, 23, 42, 0.45);
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-left {
+            text-align: left;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .min-h-screen {
+            min-height: 100vh;
+        }
+
+        button {
+            border: none;
+            cursor: pointer;
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+
+        .btn {
+            background-color: var(--slate-200);
+            color: var(--slate-700);
+            border-radius: 0.5rem;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            cursor: pointer;
+            border: none;
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px -16px rgba(15, 23, 42, 0.35);
+        }
+
+        .btn:focus {
+            outline: 2px solid var(--sky-600);
+            outline-offset: 2px;
+        }
+
+        .btn:disabled {
+            cursor: not-allowed;
+            background-color: var(--slate-100);
+            color: var(--slate-400);
+            opacity: 0.75;
+        }
+
+        .btn:disabled:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-start {
+            background-color: var(--emerald-600);
+            color: #ffffff;
+        }
+
+        .btn-on {
+            background-color: var(--emerald-500);
+            color: #ffffff;
+        }
+
+        .btn-stop {
+            background-color: var(--red-500);
+            color: #ffffff;
+        }
+
+        .btn-danger {
+            background-color: var(--red-500);
+            color: #ffffff;
+        }
+
+        .btn.btn-tab {
+            background-color: var(--slate-100);
+            color: var(--slate-700);
+        }
+
+        .btn.btn-tab-active {
+            background-color: var(--slate-800);
+            color: #ffffff;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .dropdown {
+            position: relative;
+            display: inline-flex;
+        }
+
+        .dropdown-menu {
+            position: absolute;
+            left: 0;
+            top: 100%;
+            background: #ffffff;
+            border: 1px solid var(--slate-200);
+            border-radius: 0.75rem;
+            box-shadow: 0 20px 35px -20px rgba(15, 23, 42, 0.45);
+            padding: 0.5rem;
+            z-index: 50;
+            min-width: 10rem;
+        }
+
+        .dropdown-menu .btn {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .copy-bubble {
+            position: fixed;
+            z-index: 1000;
+            background-color: rgba(15, 23, 42, 0.95);
+            color: var(--slate-100);
+            padding: 0.35rem 0.55rem;
+            border-radius: 9999px;
+            box-shadow: 0 20px 35px -20px rgba(15, 23, 42, 0.45);
+            font-size: 0.75rem;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(0);
+            transition: opacity 0.12s ease, transform 0.12s ease;
+        }
+
+        .copy-bubble.show {
+            opacity: 1;
+            transform: translateY(-2px);
+        }
+
+        .no-underline {
+            text-decoration: none;
+        }
+
+        .underline {
+            text-decoration: underline;
+        }
+
+        button:focus {
+            outline: 2px solid var(--sky-600);
+            outline-offset: 2px;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px -16px rgba(15, 23, 42, 0.35);
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+        }
+
+        button:disabled:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        a.px-2,
+        a.px-3,
+        a.px-4 {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+
+        .px-2 {
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+
+        .px-3 {
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
+        }
+
+        .px-4 {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+
+        .py-1 {
+            padding-top: 0.25rem;
+            padding-bottom: 0.25rem;
+        }
+
+        .py-2 {
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+        }
+
+        .py-3 {
+            padding-top: 0.75rem;
+            padding-bottom: 0.75rem;
+        }
+
+        .py-6 {
+            padding-top: 1.5rem;
+            padding-bottom: 1.5rem;
+        }
+
+        .font-mono {
+            font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+        }
+
+        .truncate {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .whitespace-nowrap {
+            white-space: nowrap;
+        }
+
+        .border {
+            border: 1px solid var(--slate-200);
+        }
+
+        .border-slate-200 {
+            border-color: var(--slate-200);
+        }
+
+        .border-b {
+            border-bottom: 1px solid var(--slate-200);
+        }
+
+        .border-t {
+            border-top: 1px solid var(--slate-200);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            font-weight: 500;
+            padding: 0.5rem 0.75rem;
+            text-align: left;
+        }
+
+        td {
+            padding: 0.5rem 0.75rem;
+        }
+
+        .divide-y > :not([hidden]) ~ :not([hidden]) {
+            border-top: 1px solid var(--slate-200);
+        }
+
+        .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+            border-color: var(--slate-200);
+        }
+
+        .min-w-full {
+            min-width: 100%;
+        }
+
+        .bg-slate-50 th {
+            background-color: var(--slate-50);
+        }
+
+        .bg-white tbody tr:nth-child(odd) {
+            background-color: rgba(148, 163, 184, 0.06);
+        }
+
+        .text-emerald-200 {
+            color: var(--emerald-200);
+        }
+
+        .text-amber-200 {
+            color: var(--amber-200);
+        }
+
+        .inline-flex svg {
+            display: block;
+        }
+
+        .text-sm button,
+        button.text-sm {
+            font-size: 0.875rem;
+        }
+
+        .shadow-none {
+            box-shadow: none;
+        }
+
+        .font-bold {
+            font-weight: 700;
+        }
+
+        .text-xs {
+            font-size: 0.75rem;
+        }
+
+        input[type="text"],
+        textarea,
+        select,
+        input[type="password"] {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--slate-200);
+            font-size: 0.875rem;
+            color: var(--slate-700);
+            background-color: #ffffff;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: 2px solid var(--indigo-500);
+            outline-offset: 2px;
+        }
+
+        textarea {
+            resize: vertical;
+        }
+
+        .fixed {
+            position: fixed;
+        }
+
+        .inset-0 {
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+        }
+
+        .bg-opacity-40 {
+            background-color: rgba(15, 23, 42, 0.4);
+        }
+
+        .flex.items-center {
+            align-items: center;
+        }
+
+        .justify-center {
+            justify-content: center;
+        }
+
+        .w-full {
+            width: 100%;
+        }
+
+        .max-w-lg {
+            max-width: 32rem;
+        }
+
+        .max-w-2xl {
+            max-width: 42rem;
+        }
+
+        .max-w-3xl {
+            max-width: 48rem;
+        }
+
+        .border-b {
+            border-bottom: 1px solid var(--slate-200);
+        }
+
+        .space-x-3 > * + * {
+            margin-left: 0.75rem;
+        }
+
+        .space-x-2 > * + * {
+            margin-left: 0.5rem;
+        }
+
+        code {
+            font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+            background-color: rgba(148, 163, 184, 0.15);
+            border-radius: 0.375rem;
+            padding: 0.1rem 0.3rem;
+        }
+
+        pre {
+            margin: 0;
+            font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+            white-space: pre-wrap;
+        }
+
+        @media (min-width: 768px) {
+            .md\:flex-row {
+                flex-direction: row;
+            }
+            .md\:items-center {
+                align-items: center;
+            }
+            .md\:justify-between {
+                justify-content: space-between;
+            }
+            .md\:grid-cols-2 {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .md\:grid-cols-3 {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
+        .grid {
+            display: grid;
+        }
+
+        .grid-cols-1 {
+            grid-template-columns: repeat(1, minmax(0, 1fr));
+        }
+
+        .rounded p,
+        .rounded button,
+        .rounded div {
+            position: relative;
+        }
+        .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+        .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+        .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+        .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+        .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+        .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+        .p-4 { padding: 1rem; }
+        .space-y-2 > * + * { margin-top: 0.5rem; }
+        .space-y-3 > * + * { margin-top: 0.75rem; }
+        .space-y-4 > * + * { margin-top: 1rem; }
+        .space-x-2 > * + * { margin-left: 0.5rem; }
+        .bg-black { background-color: rgba(15, 23, 42, 0.95); }
+        .bg-emerald-200 { background-color: var(--emerald-200); }
+        .bg-amber-200 { background-color: var(--amber-200); }
+        .bg-amber-500 { background-color: var(--amber-500); }
+        .bg-red-500 { background-color: var(--red-500); }
+        .text-slate-100 { color: var(--slate-100); }
+        .text-slate-700 { color: var(--slate-700); }
+        .text-emerald-600 { color: var(--emerald-600); }
+        .text-emerald-800 { color: var(--emerald-800); }
+        .text-amber-800 { color: var(--amber-800); }
+        .text-sky-600 { color: var(--sky-600); }
+        .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .overflow-auto { overflow: auto; }
+        .whitespace-pre-wrap { white-space: pre-wrap; }
+        .max-h-96 { max-height: 24rem; }
+        .row-focus { box-shadow: 0 0 0 2px var(--amber-500) inset; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-900 min-h-screen">
+    <header class="bg-slate-800 text-white py-4 shadow">
+        <div class="container mx-auto px-4 flex items-center justify-between">
+            <h1 class="text-2xl font-semibold">Codex Service Admin</h1>
+            {{if .AuthEnabled}}
+            <div class="flex items-center gap-3">
+                {{if .CurrentUser}}
+                <span class="text-sm text-slate-100">已登录：{{.CurrentUser}}</span>
+                <form method="post" action="{{mount "/admin/logout"}}">
+                    <button type="submit" class="btn px-3 py-1 text-sm">退出</button>
+                </form>
+                {{else}}
+                <a href="{{mount "/admin/login"}}" class="btn px-3 py-1 text-sm">登录</a>
+                {{end}}
+            </div>
+            {{end}}
+        </div>
+    </header>
+    <main class="container mx-auto px-4 py-6">
+        {{block "content" .}}{{end}}
+</main>
+<script>
+  let copyBubbleEl;
+  let copyBubbleTimer;
+
+  function getCopyAnchor(el, evt) {
+    if (evt && typeof evt.clientX === 'number' && typeof evt.clientY === 'number') {
+      return { x: evt.clientX, y: evt.clientY };
+    }
+    if (el && el.getBoundingClientRect) {
+      const rect = el.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top };
+    }
+    return { x: Math.floor(window.innerWidth / 2), y: 24 };
+  }
+
+  function showCopyBubble(anchor, text) {
+    if (!copyBubbleEl) {
+      copyBubbleEl = document.createElement('div');
+      copyBubbleEl.className = 'copy-bubble';
+      document.body.appendChild(copyBubbleEl);
+    }
+    copyBubbleEl.textContent = text || '已复制';
+    copyBubbleEl.classList.add('show');
+    const bubbleRect = copyBubbleEl.getBoundingClientRect();
+    const pad = 8;
+    let left = anchor.x - bubbleRect.width / 2;
+    left = Math.max(pad, Math.min(window.innerWidth - bubbleRect.width - pad, left));
+    let top = anchor.y - bubbleRect.height - 10;
+    if (top < pad) top = anchor.y + 10;
+    copyBubbleEl.style.left = left + 'px';
+    copyBubbleEl.style.top = top + 'px';
+    clearTimeout(copyBubbleTimer);
+    copyBubbleTimer = setTimeout(function () {
+      if (copyBubbleEl) copyBubbleEl.classList.remove('show');
+    }, 1200);
+  }
+
+  document.body.addEventListener('toast', function (e) {
+    const detail = e && e.detail;
+    const msg = typeof detail === 'string' ? detail : (detail && typeof detail.message === 'string' ? detail.message : '');
+    if (!msg) return;
+    showCopyBubble({ x: Math.floor(window.innerWidth / 2), y: 24 }, msg);
+  });
+
+  document.addEventListener('change', function (e) {
+    const el = e && e.target;
+    if (!el) return;
+    if (el.matches("input[type='checkbox'][name='ids']")) syncSelectionStates();
+  });
+
+  function copyText(value, el, evt) {
+    const text = String(value || '');
+    const anchor = getCopyAnchor(el, evt);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        showCopyBubble(anchor, '已复制');
+      }).catch(function () { fallbackCopy(text, anchor); });
+      return;
+    }
+    fallbackCopy(text, anchor);
+  }
+  function fallbackCopy(text, anchor) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (ok) showCopyBubble(anchor, '已复制');
+    } catch {}
+  }
+
+  function formatCountdownCN(totalSeconds) {
+    const s = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+    const days = Math.floor(s / 86400);
+    const hours = Math.floor((s % 86400) / 3600);
+    const minutes = Math.floor((s % 3600) / 60);
+    const seconds = s % 60;
+    return days + '天' + hours + '时' + minutes + '分' + seconds + '秒';
+  }
+
+  function updateCountdowns() {
+    const now = Math.floor(Date.now() / 1000);
+    document.querySelectorAll('[data-countdown-to]').forEach(function (el) {
+      const to = Number(el.dataset.countdownTo);
+      if (!to) return;
+      const diff = to - now;
+      let text;
+      if (diff <= 0) {
+        text = el.dataset.countdownExpired || formatCountdownCN(0);
+        const fire = el.dataset.countdownFire;
+        if (fire && !el.dataset.countdownFired) {
+          el.dataset.countdownFired = '1';
+          document.body.dispatchEvent(new Event(fire));
+        }
+      } else {
+        text = formatCountdownCN(diff);
+      }
+      const prefix = el.dataset.countdownPrefix || '';
+      const suffix = el.dataset.countdownSuffix || '';
+      el.textContent = prefix + text + suffix;
+    });
+  }
+
+  updateCountdowns();
+  setInterval(updateCountdowns, 1000);
+  document.body.addEventListener('htmx:afterSwap', updateCountdowns);
+
+  function toggleAllInstanceSelection(master) {
+    const root = document.getElementById('instances-table');
+    if (!root) return;
+    const checked = !!(master && master.checked);
+    root.querySelectorAll("input[type='checkbox'][name='ids']").forEach(function (el) {
+      el.checked = checked;
+    });
+    syncSelectionStates();
+  }
+
+  function toggleGroupSelection(master) {
+    const root = document.getElementById('instances-table');
+    if (!root || !master || !master.dataset) return;
+    const groupIndex = master.dataset.groupSelect;
+    if (typeof groupIndex === 'undefined') return;
+    const checked = !!master.checked;
+    master.indeterminate = false;
+    root.querySelectorAll("tr[data-group-row='" + groupIndex + "'] input[type='checkbox'][name='ids']").forEach(function (el) {
+      el.checked = checked;
+    });
+    syncSelectionStates();
+  }
+
+  function syncSelectionStates() {
+    const root = document.getElementById('instances-table');
+    if (!root) return;
+
+    const rowChecks = Array.from(root.querySelectorAll("input[type='checkbox'][name='ids']"));
+    const totalRows = rowChecks.length;
+    const checkedRows = rowChecks.filter(function (el) { return el.checked; }).length;
+    const allBox = root.querySelector("input[type='checkbox'][data-select-all-ids]");
+    if (allBox) {
+      allBox.indeterminate = checkedRows > 0 && checkedRows < totalRows;
+      allBox.checked = totalRows > 0 && checkedRows === totalRows;
+    }
+
+    root.querySelectorAll("input[type='checkbox'][data-group-select]").forEach(function (groupBox) {
+      const idx = groupBox.dataset.groupSelect;
+      const children = Array.from(root.querySelectorAll("tr[data-group-row='" + idx + "'] input[type='checkbox'][name='ids']"));
+      const total = children.length;
+      const checked = children.filter(function (el) { return el.checked; }).length;
+      groupBox.indeterminate = checked > 0 && checked < total;
+      groupBox.checked = total > 0 && checked === total;
+    });
+  }
+
+  function toggleGroupRows(btn) {
+    if (!btn || !btn.dataset) return;
+    const groupIndex = btn.dataset.groupToggle;
+    if (typeof groupIndex === 'undefined') return;
+    const root = document.getElementById('instances-table');
+    if (!root) return;
+    const rows = root.querySelectorAll('[data-group-row=\"' + groupIndex + '\"]');
+    if (!rows || rows.length === 0) return;
+    const willShow = rows[0].classList.contains('hidden');
+    rows.forEach(function (row) {
+      if (willShow) row.classList.remove('hidden');
+      else row.classList.add('hidden');
+    });
+    btn.dataset.groupExpanded = willShow ? '1' : '0';
+    btn.textContent = willShow ? '收起' : '展开';
+  }
+
+  syncSelectionStates();
+  document.body.addEventListener('htmx:afterSwap', function (e) {
+    const t = e && e.detail && e.detail.target;
+    if (!t || t.id !== 'instances-table') return;
+    syncSelectionStates();
+  });
+
+  function jumpToInstance(id, state, view) {
+    const targetID = String(id || '').trim();
+    if (!targetID) return;
+
+    function tryScroll() {
+      const row = document.getElementById('inst-row-' + targetID);
+      if (!row) return false;
+      if (row.classList.contains('hidden')) {
+        const groupIndex = row.dataset.groupRow;
+        if (typeof groupIndex !== 'undefined') {
+          const toggle = document.querySelector('[data-group-toggle=\"' + groupIndex + '\"]');
+          if (toggle && toggle.dataset && toggle.dataset.groupExpanded !== '1') {
+            toggleGroupRows(toggle);
+          }
+        }
+      }
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.classList.add('row-focus');
+      setTimeout(function () { row.classList.remove('row-focus'); }, 1200);
+      return true;
+    }
+
+    if (tryScroll()) return;
+
+    const targetState = String(state || '').trim();
+    const viewMode = String(view || '').trim();
+    if (!targetState || !viewMode) return;
+
+    if (!window.htmx || typeof window.htmx.ajax !== 'function') {
+      window.location.href = '{{mount "/admin"}}#inst-row-' + targetID;
+      return;
+    }
+
+    function afterSwap(evt) {
+      const t = evt && evt.detail && evt.detail.target;
+      if (!t || t.id !== 'instances-table') return;
+      document.body.removeEventListener('htmx:afterSwap', afterSwap);
+      tryScroll();
+    }
+    document.body.addEventListener('htmx:afterSwap', afterSwap);
+    window.htmx.ajax('GET', '{{mount "/admin/instances/table"}}?state=' + encodeURIComponent(targetState) + '&view=' + encodeURIComponent(viewMode), { target: '#instances-table', swap: 'outerHTML' });
+  }
+
+  function toggleDropdown(btn) {
+    const wrap = btn.closest('.dropdown');
+    if (!wrap) return;
+    const menu = wrap.querySelector('.dropdown-menu');
+    if (!menu) return;
+    document.querySelectorAll('.dropdown-menu').forEach(function (m) {
+      if (m !== menu) m.classList.add('hidden');
+    });
+    const opening = menu.classList.contains('hidden');
+    menu.classList.toggle('hidden');
+    if (opening) positionDropdownMenu(btn, menu);
+  }
+
+  function closeDropdown(el) {
+    const wrap = el.closest('.dropdown');
+    if (!wrap) return;
+    const menu = wrap.querySelector('.dropdown-menu');
+    if (!menu) return;
+    menu.classList.add('hidden');
+  }
+
+  function positionDropdownMenu(btn, menu) {
+    const rect = btn.getBoundingClientRect();
+    const pad = 8;
+    const gap = 0;
+    menu.style.position = 'fixed';
+    menu.style.right = 'auto';
+    menu.style.bottom = 'auto';
+    menu.style.left = '0px';
+    menu.style.top = '0px';
+    menu.style.maxHeight = '';
+    menu.style.overflowY = '';
+    const menuRect = menu.getBoundingClientRect();
+    const left = Math.max(
+      pad,
+      Math.min(window.innerWidth - menuRect.width - pad, rect.left),
+    );
+    const spaceBelow = window.innerHeight - rect.bottom - pad - gap;
+    const spaceAbove = rect.top - pad - gap;
+    const shouldPlaceBelow = spaceBelow >= menuRect.height || spaceBelow >= spaceAbove;
+    const availableSpace = shouldPlaceBelow ? spaceBelow : spaceAbove;
+    if (availableSpace < menuRect.height) {
+      menu.style.maxHeight = Math.max(0, availableSpace) + 'px';
+      menu.style.overflowY = 'auto';
+    }
+    const finalRect = menu.getBoundingClientRect();
+    const top = shouldPlaceBelow
+      ? rect.bottom + gap
+      : rect.top - gap - finalRect.height;
+    menu.style.left = left + 'px';
+    menu.style.top = top + 'px';
+  }
+
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('.dropdown')) return;
+    document.querySelectorAll('.dropdown-menu').forEach(function (m) { m.classList.add('hidden'); });
+  });
+
+  window.addEventListener('scroll', function () {
+    document.querySelectorAll('.dropdown-menu').forEach(function (m) { m.classList.add('hidden'); });
+  }, true);
+</script>
+</body>
+</html>
+{{end}}

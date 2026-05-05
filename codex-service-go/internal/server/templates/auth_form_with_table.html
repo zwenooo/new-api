@@ -1,0 +1,5 @@
+{{define "auth_form_with_table"}}
+{{template "auth_form" .}}
+<div id="instances-table" class="mt-3" hx-swap-oob="outerHTML" hx-get="{{mount "/admin/instances/table"}}?state={{.ActiveTab}}&view={{.ViewMode}}" hx-trigger="load, refreshInstances from:body" hx-swap="outerHTML">
+</div>
+{{end}}

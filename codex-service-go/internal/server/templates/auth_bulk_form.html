@@ -1,0 +1,35 @@
+{{define "auth_bulk_form"}}
+<div class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+  <div class="bg-white rounded shadow-lg w-full max-w-2xl">
+    <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+      <h3 class="text-lg font-semibold">新增实例（导入 auth.json）</h3>
+      <button type="button" class="btn px-2 py-1 text-sm" hx-get="{{mount "/admin/close"}}" hx-target="#modal" hx-swap="innerHTML">✕</button>
+    </div>
+    <form class="px-6 py-4 space-y-4" hx-post="{{mount "/admin/auth/bulk"}}" hx-target="#instances-table" hx-swap="outerHTML">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-medium text-slate-700">分组名</label>
+          <input type="text" name="name_prefix" value="Imported" class="mt-1 block w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500">
+          <p class="mt-1 text-xs text-slate-500">若仅 1 份 auth.json：实例名 = 分组名；若多份：实例命名为 “分组名-01/02/…”</p>
+        </div>
+        <div class="flex items-end">
+          <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" name="enable" value="true" checked class="rounded border-slate-300">
+            导入后自动启动（enable）
+          </label>
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700">auth.json（单个或使用 <code>---</code> 分割多份）</label>
+        <textarea name="auth_bulk" rows="14" class="mt-1 block w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500 font-mono text-sm" placeholder='{"OPENAI_API_KEY":"...","tokens":{...}}
+---
+{"OPENAI_API_KEY":"...","tokens":{...}}' required></textarea>
+      </div>
+      <div class="flex justify-end space-x-3 pt-2">
+        <button type="button" class="btn px-4 py-2 text-sm" hx-get="{{mount "/admin/close"}}" hx-target="#modal" hx-swap="innerHTML">取消</button>
+        <button type="submit" class="btn px-4 py-2 text-sm">导入</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}

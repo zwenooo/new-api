@@ -1,0 +1,41 @@
+# 统一文本行为 LF，避免 CRLF 带来的“虚假改动”
+* text=auto eol=lf
+
+# 明确常见文本类型（保证以 LF 存储）
+*.sh      text eol=lf
+*.go      text eol=lf
+*.js      text eol=lf
+*.jsx     text eol=lf
+*.ts      text eol=lf
+*.tsx     text eol=lf
+*.css     text eol=lf
+*.scss    text eol=lf
+*.json    text eol=lf
+*.md      text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+*.toml    text eol=lf
+*.sql     text eol=lf
+*.env     text eol=lf
+*.service text eol=lf
+Dockerfile text eol=lf
+
+# Windows 批处理/脚本保留 CRLF（在 Win 上执行更稳妥）
+*.bat eol=crlf
+*.cmd eol=crlf
+*.ps1 eol=crlf
+
+# 常见二进制文件，不做行尾转换
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.ico  binary
+*.pdf  binary
+*.zip  binary
+*.gz   binary
+*.tgz  binary
+*.7z   binary
+*.tar  binary
+*.db   binary

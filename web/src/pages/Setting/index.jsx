@@ -1,0 +1,228 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+import React, { useEffect, useState } from 'react';
+import { TabPane, Tabs } from '@douyinfe/semi-ui';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import {
+  Settings,
+  Calculator,
+  Gauge,
+  Activity,
+  Shapes,
+  Package,
+  Cog,
+  MoreHorizontal,
+  LayoutDashboard,
+  MessageSquare,
+  Palette,
+  CreditCard,
+  Plug,
+} from 'lucide-react';
+
+import SystemSetting from '../../components/settings/SystemSetting';
+import { isRoot } from '../../helpers';
+import OtherSetting from '../../components/settings/OtherSetting';
+import OperationSetting from '../../components/settings/OperationSetting';
+import RateLimitSetting from '../../components/settings/RateLimitSetting';
+import ModelSetting from '../../components/settings/ModelSetting';
+import PerformanceSetting from '../../components/settings/PerformanceSetting';
+import CxCompatSetting from '../../components/settings/CxCompatSetting';
+import DashboardSetting from '../../components/settings/DashboardSetting';
+import RatioSetting from '../../components/settings/RatioSetting';
+import ChatsSetting from '../../components/settings/ChatsSetting';
+import DrawingSetting from '../../components/settings/DrawingSetting';
+import PaymentSetting from '../../components/settings/PaymentSetting';
+import ClawBoxSetting from '../../components/settings/ClawBoxSetting';
+import ConsolePage from '../../components/layout/ConsolePage';
+
+const Setting = () => {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [tabActiveKey, setTabActiveKey] = useState('1');
+  let panes = [];
+
+  if (isRoot()) {
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Settings size={18} />
+          {t('运营设置')}
+        </span>
+      ),
+      content: <OperationSetting />,
+      itemKey: 'operation',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <LayoutDashboard size={18} />
+          {t('仪表盘设置')}
+        </span>
+      ),
+      content: <DashboardSetting />,
+      itemKey: 'dashboard',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <MessageSquare size={18} />
+          {t('聊天设置')}
+        </span>
+      ),
+      content: <ChatsSetting />,
+      itemKey: 'chats',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Palette size={18} />
+          {t('绘图设置')}
+        </span>
+      ),
+      content: <DrawingSetting />,
+      itemKey: 'drawing',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <CreditCard size={18} />
+          {t('支付设置')}
+        </span>
+      ),
+      content: <PaymentSetting />,
+      itemKey: 'payment',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Calculator size={18} />
+          {t('倍率设置')}
+        </span>
+      ),
+      content: <RatioSetting />,
+      itemKey: 'ratio',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Gauge size={18} />
+          {t('速率限制设置')}
+        </span>
+      ),
+      content: <RateLimitSetting />,
+      itemKey: 'ratelimit',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Activity size={18} />
+          {t('性能设置')}
+        </span>
+      ),
+      content: <PerformanceSetting />,
+      itemKey: 'performance',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Shapes size={18} />
+          {t('模型相关设置')}
+        </span>
+      ),
+      content: <ModelSetting />,
+      itemKey: 'models',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Plug size={18} />
+          {t('cx模型兼容性配置')}
+        </span>
+      ),
+      content: <CxCompatSetting />,
+      itemKey: 'cx_compat',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Package size={18} />
+          {t('ClawBox 设置')}
+        </span>
+      ),
+      content: <ClawBoxSetting />,
+      itemKey: 'clawbox',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Cog size={18} />
+          {t('系统设置')}
+        </span>
+      ),
+      content: <SystemSetting />,
+      itemKey: 'system',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <MoreHorizontal size={18} />
+          {t('其他设置')}
+        </span>
+      ),
+      content: <OtherSetting />,
+      itemKey: 'other',
+    });
+  }
+  const onChangeTab = (key) => {
+    setTabActiveKey(key);
+    navigate(`?tab=${key}`);
+  };
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const tab = searchParams.get('tab');
+    if (tab) {
+      setTabActiveKey(tab);
+    } else {
+      onChangeTab('operation');
+    }
+  }, [location.search]);
+  return (
+    <ConsolePage fillHeight={false}>
+      <div className='app-surface-solid p-4 md:p-6'>
+        <Tabs
+          type='card'
+          collapsible
+          activeKey={tabActiveKey}
+          onChange={(key) => onChangeTab(key)}
+        >
+          {panes.map((pane) => (
+            <TabPane itemKey={pane.itemKey} tab={pane.tab} key={pane.itemKey}>
+              {tabActiveKey === pane.itemKey && pane.content}
+            </TabPane>
+          ))}
+        </Tabs>
+      </div>
+    </ConsolePage>
+  );
+};
+
+export default Setting;

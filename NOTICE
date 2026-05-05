@@ -1,0 +1,23 @@
+New API - Modified Distribution
+================================
+
+This repository is a modified distribution based on New API.
+
+Upstream project:
+  QuantumNous/new-api
+  https://github.com/QuantumNous/new-api
+
+The upstream repository itself contains work derived from the New API and
+One API communities, including Calcium-Ion/new-api and songquanpeng/one-api.
+
+Copyright notices present in source files are preserved. In particular, many
+frontend files contain:
+
+  Copyright (C) 2025 QuantumNous
+
+This distribution includes additional modifications by zwenooo and other
+contributors to this repository. Unless stated otherwise, those modifications
+are licensed under the same terms as the project: GNU Affero General Public
+License version 3 or later.
+
+The full license text is available in LICENSE.

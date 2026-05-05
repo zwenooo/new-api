@@ -1,0 +1,26 @@
+{{define "instance_form"}}
+<div class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+  <div class="bg-white rounded shadow-lg w-full max-w-lg">
+    <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+      <h3 class="text-lg font-semibold">{{if .Instance}}Edit Instance{{else}}New Instance{{end}}</h3>
+      <button type="button" class="btn px-2 py-1 text-sm" hx-get="{{mount "/admin/close"}}" hx-target="#modal" hx-swap="innerHTML">✕</button>
+    </div>
+    <form class="px-6 py-4 space-y-4" hx-post="{{mount .Action}}" hx-target="{{if .Instance}}#instances-table{{else}}#modal{{end}}" hx-swap="{{if .Instance}}outerHTML{{else}}innerHTML{{end}}">
+      <div>
+        <label class="block text-sm font-medium text-slate-700">Name</label>
+        <input type="text" name="name" value="{{with .Instance}}{{.Name}}{{end}}" class="mt-1 block w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500" required>
+      </div>
+      {{/* 简化编辑弹窗：这些由 .env 管控，不在页面编辑 */}}
+      {{/* 移除：Internal Token、鉴权模式、上游 Base URL、OpenAI API Key */}}
+      {{if .Instance}}
+      <div class="text-xs text-slate-500">API 基础路径：<code>{{.Instance.BasePath}}</code> · 请求入口示例：<code>{{.Instance.BasePath}}/v1/responses</code></div>
+      {{end}}
+      {{if not .Instance}}<p class="text-xs text-slate-500">保存后将打开 auth.json 填写窗口，用于启动该实例。</p>{{end}}
+      <div class="flex justify-end space-x-3 pt-2">
+        <button type="button" class="btn px-4 py-2 text-sm" hx-get="{{mount "/admin/close"}}" hx-target="#modal" hx-swap="innerHTML">取消</button>
+        <button type="submit" class="btn px-4 py-2 text-sm">{{if .Instance}}保存{{else}}保存并填写auth{{end}}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}

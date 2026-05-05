@@ -1,0 +1,25 @@
+.idea
+.vscode
+upload
+*.exe
+*.db
+build
+*.db-journal
+*.db-wal
+*.db-shm
+logs
+auth
+log
+db
+run
+web/dist
+.env
+one-api
+.DS_Store
+tiktoken_cache
+.eslintcache
+
+# codex-service-go (source code, not runtime data)
+!codex-service-go/internal/db/
+!codex-service-go/internal/db/**
+.omx/

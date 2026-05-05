@@ -1,0 +1,8 @@
+{{define "instances_table_with_modal"}}
+{{template "instances_table" .}}
+{{if .Modal}}
+<div id="modal" hx-swap-oob="innerHTML">
+  {{template "login_modal" .Modal}}
+</div>
+{{end}}
+{{end}}

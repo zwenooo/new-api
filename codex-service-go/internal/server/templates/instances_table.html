@@ -1,0 +1,141 @@
+{{define "instances_table"}}
+<div id="instances-table" hx-get="{{mount "/admin/instances/table"}}?state={{.ActiveTab}}&view={{.ViewMode}}" hx-trigger="refreshInstances from:body" hx-swap="outerHTML">
+<div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between" style="margin-bottom: 0.5rem;">
+  <div class="flex flex-wrap items-center gap-2">
+	    <button type="button" class="btn btn-tab px-3 py-1 text-sm {{if eq .ActiveTab "normal"}}btn-tab-active{{end}}" hx-get="{{mount "/admin/instances/table"}}?state=normal&view={{.ViewMode}}" hx-target="#instances-table" hx-swap="outerHTML">正常</button>
+	    <button type="button" class="btn btn-tab px-3 py-1 text-sm {{if eq .ActiveTab "cooldown"}}btn-tab-active{{end}}" hx-get="{{mount "/admin/instances/table"}}?state=cooldown&view={{.ViewMode}}" hx-target="#instances-table" hx-swap="outerHTML">上游冷却</button>
+	    <button type="button" class="btn btn-tab px-3 py-1 text-sm {{if eq .ActiveTab "channel_backoff"}}btn-tab-active{{end}}" hx-get="{{mount "/admin/instances/table"}}?state=channel_backoff&view={{.ViewMode}}" hx-target="#instances-table" hx-swap="outerHTML">渠道退避</button>
+	    <button type="button" class="btn btn-tab px-3 py-1 text-sm {{if eq .ActiveTab "transport_quarantine"}}btn-tab-active{{end}}" hx-get="{{mount "/admin/instances/table"}}?state=transport_quarantine&view={{.ViewMode}}" hx-target="#instances-table" hx-swap="outerHTML">链路隔离</button>
+	    <button type="button" class="btn btn-tab px-3 py-1 text-sm {{if eq .ActiveTab "member_expired"}}btn-tab-active{{end}}" hx-get="{{mount "/admin/instances/table"}}?state=member_expired&view={{.ViewMode}}" hx-target="#instances-table" hx-swap="outerHTML">会员过期</button>
+	    <button type="button" class="btn btn-tab px-3 py-1 text-sm {{if eq .ActiveTab "expired"}}btn-tab-active{{end}}" hx-get="{{mount "/admin/instances/table"}}?state=expired&view={{.ViewMode}}" hx-target="#instances-table" hx-swap="outerHTML">过期</button>
+    <span class="text-slate-400" style="margin:0 0.25rem;">|</span>
+    <button type="button" class="btn btn-tab px-3 py-1 text-sm {{if eq .ViewMode "instance"}}btn-tab-active{{end}}" hx-get="{{mount "/admin/instances/table"}}?state={{.ActiveTab}}&view=instance" hx-target="#instances-table" hx-swap="outerHTML">按实例展示</button>
+    <button type="button" class="btn btn-tab px-3 py-1 text-sm {{if eq .ViewMode "group"}}btn-tab-active{{end}}" hx-get="{{mount "/admin/instances/table"}}?state={{.ActiveTab}}&view=group" hx-target="#instances-table" hx-swap="outerHTML">按分组展示</button>
+  </div>
+  <div class="flex flex-wrap items-center gap-2">
+    <button type="button" class="btn btn-start px-3 py-1 text-sm" hx-post="{{mount "/admin/instances/bulk/enable"}}?state={{.ActiveTab}}&view={{.ViewMode}}" hx-vals='{"enable":"true"}' hx-include="#instances-table input[name='ids']:checked" hx-target="#instances-table" hx-swap="outerHTML">启动</button>
+    <button type="button" class="btn btn-stop px-3 py-1 text-sm" hx-post="{{mount "/admin/instances/bulk/enable"}}?state={{.ActiveTab}}&view={{.ViewMode}}" hx-vals='{"enable":"false"}' hx-include="#instances-table input[name='ids']:checked" hx-target="#instances-table" hx-swap="outerHTML">停止</button>
+    <button type="button" class="btn btn-on px-3 py-1 text-sm" hx-get="{{mount "/admin/instances/bulk/debug"}}?state={{.ActiveTab}}&view={{.ViewMode}}" hx-include="#instances-table input[name='ids']:checked" hx-target="#modal" hx-swap="innerHTML">调试</button>
+    <button type="button" class="btn btn-danger px-3 py-1 text-sm" hx-post="{{mount "/admin/instances/bulk/delete"}}?state={{.ActiveTab}}&view={{.ViewMode}}" hx-include="#instances-table input[name='ids']:checked" hx-confirm="删除选中实例？" hx-target="#instances-table" hx-swap="outerHTML">删除</button>
+  </div>
+</div>
+<table class="min-w-full divide-y divide-slate-200">
+  <thead class="bg-slate-50">
+    <tr>
+      <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">
+        <label class="inline-flex items-center gap-2" style="cursor:pointer;">
+          <input type="checkbox" class="rounded border-slate-300" data-select-all-ids="1" onclick="toggleAllInstanceSelection(this)" aria-label="全选">
+          操作
+        </label>
+      </th>
+      <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">序号</th>
+      <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">状态</th>
+      <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">account_id</th>
+      <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">新增时间</th>
+      <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">凭证时间</th>
+      <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">实例名</th>
+    </tr>
+  </thead>
+  <tbody class="divide-y divide-slate-200 bg-white">
+    {{if .Groups}}
+    {{range $gi, $g := .Groups}}
+      {{if and (eq $.ViewMode "group") $g.Name}}
+      <tr class="bg-slate-50">
+        <td colspan="7" class="px-3 py-2 text-sm font-medium text-slate-700">
+          <div class="flex flex-wrap items-center gap-2">
+            <input type="checkbox" class="rounded border-slate-300" data-group-select="{{$gi}}" onclick="toggleGroupSelection(this)" aria-label="分组全选 {{$g.Name}}">
+            <button type="button" class="btn px-2 py-1 text-xs" data-group-toggle="{{$gi}}" data-group-expanded="0" onclick="toggleGroupRows(this)">展开</button>
+            <span>分组：{{$g.Name}}</span>
+            <span class="text-xs text-slate-500">({{len $g.Rows}})</span>
+          </div>
+        </td>
+      </tr>
+      {{end}}
+      {{range $g.Rows}}
+    <tr id="inst-row-{{.ID}}" {{if eq $.ViewMode "group"}}class="hidden" data-group-row="{{$gi}}"{{end}}>
+      <td class="px-3 py-2 text-sm">
+        <div class="flex flex-wrap items-center gap-2">
+          <input type="checkbox" name="ids" value="{{.ID}}" class="rounded border-slate-300" aria-label="选择实例 {{.Name}}">
+          <a class="btn px-2 py-1 text-sm" href="{{mount "/admin/instances"}}/{{.ID}}/log/full" target="_blank">查看日志</a>
+          <div class="dropdown">
+            <button type="button" class="btn px-2 py-1 text-sm" onclick="toggleDropdown(this)">更多</button>
+            <div class="dropdown-menu hidden">
+              <div class="flex flex-col gap-2">
+                <button type="button" class="btn px-2 py-1 text-sm {{if .DebugEnabled}}btn-on{{end}}" hx-get="{{mount "/admin/instances"}}/{{.ID}}/debug?state={{$.ActiveTab}}&view={{$.ViewMode}}" hx-target="#modal" hx-swap="innerHTML" onclick="closeDropdown(this)">调试</button>
+                {{if .Enabled}}
+                  <button type="button" class="btn btn-stop px-2 py-1 text-sm" hx-post="{{mount "/admin/instances"}}/{{.ID}}/enable?state={{$.ActiveTab}}&view={{$.ViewMode}}" hx-vals='{"enable":"false"}' hx-target="#instances-table" hx-swap="outerHTML" onclick="closeDropdown(this)">停止</button>
+                {{else}}
+                  {{if eq .AuthMode "api_key"}}
+                    <button type="button" class="btn btn-start px-2 py-1 text-sm" hx-post="{{mount "/admin/instances"}}/{{.ID}}/enable?state={{$.ActiveTab}}&view={{$.ViewMode}}" hx-vals='{"enable":"true"}' hx-target="#instances-table" hx-swap="outerHTML" onclick="closeDropdown(this)">启动</button>
+                  {{else if .AuthExists}}
+                    <button type="button" class="btn btn-start px-2 py-1 text-sm" hx-post="{{mount "/admin/instances"}}/{{.ID}}/enable?state={{$.ActiveTab}}&view={{$.ViewMode}}" hx-vals='{"enable":"true"}' hx-target="#instances-table" hx-swap="outerHTML" onclick="closeDropdown(this)">启动</button>
+                  {{else}}
+                    <button type="button" class="btn btn-start px-2 py-1 text-sm" hx-get="{{mount "/admin/instances"}}/{{.ID}}/auth?state={{$.ActiveTab}}&view={{$.ViewMode}}" hx-target="#modal" hx-swap="innerHTML" onclick="closeDropdown(this)">启动</button>
+                  {{end}}
+                {{end}}
+                {{if eq .AuthMode "api_key"}}
+                  <button type="button" class="btn px-2 py-1 text-sm" hx-get="{{mount "/admin/instances"}}/{{.ID}}/edit?state={{$.ActiveTab}}&view={{$.ViewMode}}" hx-target="#modal" hx-swap="innerHTML" onclick="closeDropdown(this)">API Key</button>
+                {{else if .AuthExists}}
+                  <button type="button" class="btn px-2 py-1 text-sm" hx-get="{{mount "/admin/instances"}}/{{.ID}}/auth/view?state={{$.ActiveTab}}&view={{$.ViewMode}}" hx-target="#modal" hx-swap="innerHTML" onclick="closeDropdown(this)">凭证</button>
+                {{else}}
+                  <button type="button" class="btn px-2 py-1 text-sm" hx-get="{{mount "/admin/instances"}}/{{.ID}}/auth?state={{$.ActiveTab}}&view={{$.ViewMode}}" hx-target="#modal" hx-swap="innerHTML" onclick="closeDropdown(this)">凭证</button>
+                {{end}}
+                <button type="button" class="btn px-2 py-1 text-sm {{if not $.RefreshEnabled}}text-slate-400 cursor-not-allowed{{end}}" {{if not $.RefreshEnabled}}disabled aria-disabled="true" title="已关闭刷新"{{else}}hx-post="{{mount "/admin/instances"}}/{{.ID}}/refresh" hx-swap="none" onclick="closeDropdown(this)"{{end}}>刷新凭据</button>
+                <button type="button" class="btn px-2 py-1 text-sm" onclick="copyText('{{$.BaseURL}}{{.BasePath}}/v1', this, event); closeDropdown(this)" title="复制请求地址" aria-label="复制请求地址">复制</button>
+                <button type="button" class="btn px-2 py-1 text-sm" hx-delete="{{mount "/admin/instances"}}/{{.ID}}/log" hx-confirm="清空日志文件？" hx-swap="none" onclick="closeDropdown(this)">清空日志</button>
+                <button type="button" class="btn btn-danger px-2 py-1 text-sm" hx-delete="{{mount "/admin/instances"}}/{{.ID}}?state={{$.ActiveTab}}&view={{$.ViewMode}}" hx-confirm="删除实例 {{.Name}}？" hx-target="#instances-table" hx-swap="outerHTML" onclick="closeDropdown(this)">删除</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </td>
+      <td class="px-3 py-2 text-sm text-slate-700 whitespace-nowrap">
+        <div class="flex flex-wrap items-center gap-2">
+          <span>{{.ID}}</span>
+          {{if .DuplicateOfID}}
+            <button type="button" class="btn px-2 py-1 text-xs" title="跳转到实例 {{.DuplicateOfID}}" onclick="jumpToInstance({{.DuplicateOfID}}, '{{.DuplicateOfState}}', '{{$.ViewMode}}')">重复</button>
+          {{end}}
+        </div>
+      </td>
+      <td class="px-3 py-2 text-sm text-slate-700 whitespace-nowrap">
+        <div class="flex flex-col gap-1">
+          <span>{{if .CooldownMain}}{{.CooldownMain}}{{else}}NA{{end}}</span>
+          <span class="text-xs text-slate-500">{{if .Enabled}}已启动{{else}}已停止{{end}}{{if .DebugEnabled}} · 调试已开{{end}}</span>
+          {{if .CooldownUntilUnix}}
+            <span class="text-xs text-slate-500" data-countdown-to="{{.CooldownUntilUnix}}" data-countdown-prefix="剩余" data-countdown-fire="refreshInstances"></span>
+          {{end}}
+          {{if and .AuthExpired (ne .CooldownMain "过期")}}
+            <span class="text-xs text-red-600">凭证已过期</span>
+          {{end}}
+        </div>
+      </td>
+      <td class="px-3 py-2 text-sm text-slate-700 whitespace-nowrap">
+        {{if .AccountID}}
+          <code class="font-mono text-xs text-slate-600 truncate" style="max-width: 12rem; display:inline-block;">{{.AccountID}}</code>
+        {{else}}
+          <span class="text-slate-400">—</span>
+        {{end}}
+      </td>
+      <td class="px-3 py-2 text-sm text-slate-700 whitespace-nowrap">{{if .AuthImportedAt}}{{.AuthImportedAt}}{{else}}—{{end}}</td>
+      <td class="px-3 py-2 text-sm text-slate-700 whitespace-nowrap">
+        <div class="flex flex-col gap-1">
+          <span>{{if .LastRefreshAt}}{{.LastRefreshAt}}{{else}}—{{end}}</span>
+          <span>{{if .ATExpiresAt}}{{.ATExpiresAt}}{{else}}—{{end}}</span>
+          {{if .ATExpiresAtUnix}}
+            <span class="text-xs text-slate-500" data-countdown-to="{{.ATExpiresAtUnix}}" data-countdown-expired="已过期"></span>
+          {{end}}
+        </div>
+      </td>
+      <td class="px-3 py-2 text-sm text-slate-700" hx-get="{{mount "/admin/instances"}}/{{.ID}}/edit?state={{$.ActiveTab}}&view={{$.ViewMode}}" hx-target="#modal" hx-swap="innerHTML" hx-trigger="dblclick" style="cursor:pointer">{{.Name}}</td>
+    </tr>
+      {{end}}
+    {{end}}
+    {{else}}
+    <tr>
+      <td colspan="7" class="px-3 py-6 text-center text-slate-500">暂无实例</td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+</div>
+{{end}}

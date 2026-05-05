@@ -1,0 +1,19 @@
+{{define "refresh_status"}}
+<div id="refresh-status" class="bg-slate-50 border border-slate-200 rounded p-4 space-y-3">
+  <div>
+    <div class="text-sm font-semibold text-slate-700">刷新开关</div>
+    <div class="text-xs text-slate-500">关闭后禁用“刷新凭据”按钮，并停止自动刷新；开启后按 {{.MinDays}}–{{.MaxDays}} 天随机时刻自动刷新</div>
+  </div>
+  <button type="button" class="btn px-3 py-1 text-sm {{if .Enabled}}btn-on{{else}}btn-stop{{end}}" hx-post="{{mount "/admin/refresh/toggle"}}" hx-vals='{"enable":"{{if .Enabled}}false{{else}}true{{end}}"}' hx-target="#refresh-status" hx-swap="outerHTML" title="点击切换">
+    状态：{{if .Enabled}}已开启{{else}}已关闭{{end}}
+  </button>
+  <form class="flex flex-wrap items-center gap-2" hx-post="{{mount "/admin/refresh/config"}}" hx-target="#refresh-status" hx-swap="outerHTML">
+    <span class="text-sm text-slate-700">自动刷新间隔（天）：</span>
+    <input type="number" name="min_days" value="{{.MinDays}}" class="border rounded px-2 py-1 text-sm" style="width:5.5rem;" min="1">
+    <span class="text-sm text-slate-700">—</span>
+    <input type="number" name="max_days" value="{{.MaxDays}}" class="border rounded px-2 py-1 text-sm" style="width:5.5rem;" min="1">
+    <button type="submit" class="btn px-3 py-1 text-sm">保存</button>
+  </form>
+  <div class="text-xs text-slate-500">持久化：<code>{{.EnvFile}}</code></div>
+</div>
+{{end}}

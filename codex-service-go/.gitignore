@@ -1,0 +1,30 @@
+# Build artifacts
+bin/
+dist/
+tmp/
+
+# Go build cache / modules
+vendor/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# Runtime data
+/auth/
+/log/
+/db/
+/internal/db/sqlc/
+
+# Environment / local config
+.env
+.env.local
+.env.*.local
+
+# Editor / OS specific
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

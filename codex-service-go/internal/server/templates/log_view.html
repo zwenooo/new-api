@@ -1,0 +1,14 @@
+{{define "log_view"}}
+<div class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+  <div class="bg-white rounded shadow-lg w-full max-w-3xl">
+    <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+      <h3 class="text-lg font-semibold">Log · Instance {{.Instance.ID}}</h3>
+      <button type="button" class="btn px-2 py-1 text-sm" hx-get="{{mount "/admin/close"}}" hx-target="#modal" hx-swap="innerHTML">✕</button>
+    </div>
+    <div class="px-6 py-4">
+      <pre class="bg-slate-900 text-slate-100 text-sm rounded p-4 max-h-96 overflow-auto whitespace-pre-wrap">{{.Log}}</pre>
+      <p class="mt-2 text-xs text-slate-500">路径：{{.Instance.LogPath}}</p>
+    </div>
+  </div>
+</div>
+{{end}}

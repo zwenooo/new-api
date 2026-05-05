@@ -1,0 +1,25 @@
+{{define "ssh_status"}}
+<div id="ssh-status" class="bg-slate-50 border border-slate-200 rounded p-4 space-y-3" hx-get="{{mount "/admin/ssh/status"}}" hx-trigger="refreshSSH from:body" hx-swap="outerHTML">
+  <div class="flex items-center justify-between">
+    <div>
+      <div class="text-sm font-semibold text-slate-700">2222 端口状态</div>
+      <div class="text-xs text-slate-500">用于登录引导的 SSH 转发通道</div>
+    </div>
+    <button type="button" class="px-3 py-1 text-xs bg-slate-200 text-slate-700 rounded" hx-get="{{mount "/admin/ssh/status"}}" hx-target="#ssh-status" hx-swap="outerHTML">刷新</button>
+  </div>
+  <div class="text-sm text-slate-700 space-y-1">
+    <div>防火墙：{{if .FirewallOpen}}<span class="text-emerald-600">已放行{{if .FirewallTool}} ({{.FirewallTool}}){{end}}</span>{{else}}<span class="text-red-600">未放行{{if .FirewallTool}} ({{.FirewallTool}}){{end}}</span>{{end}}</div>
+    <div>SSH 配置：{{if .Enabled}}<span class="text-emerald-600">已启用 2222</span>{{else}}<span class="text-red-600">未启用 2222</span>{{end}}</div>
+    <div>监听状态：{{if .Listening}}<span class="text-emerald-600">监听中</span>{{else}}<span class="text-red-600">未监听</span>{{end}}</div>
+    {{if .Errors}}
+    <div class="text-xs text-red-600">{{range .Errors}}• {{.}}<br>{{end}}</div>
+    {{end}}
+  </div>
+  <div class="flex flex-wrap gap-2">
+    <button type="button" class="px-3 py-1 text-sm bg-emerald-500 text-white rounded" hx-post="{{mount "/admin/ssh/firewall"}}" hx-vals='{"enable":"true"}' hx-target="#ssh-status" hx-swap="outerHTML">开放防火墙 (2222)</button>
+    <button type="button" class="px-3 py-1 text-sm bg-slate-200 text-slate-700 rounded" hx-post="{{mount "/admin/ssh/firewall"}}" hx-vals='{"enable":"false"}' hx-target="#ssh-status" hx-swap="outerHTML">关闭防火墙 (2222)</button>
+    <button type="button" class="px-3 py-1 text-sm bg-indigo-500 text-white rounded" hx-post="{{mount "/admin/ssh/config"}}" hx-vals='{"action":"enable"}' hx-target="#ssh-status" hx-swap="outerHTML">开启 SSH 2222</button>
+    <button type="button" class="px-3 py-1 text-sm bg-slate-200 text-slate-700 rounded" hx-post="{{mount "/admin/ssh/config"}}" hx-vals='{"action":"disable"}' hx-target="#ssh-status" hx-swap="outerHTML">关闭 SSH 2222</button>
+  </div>
+</div>
+{{end}}

@@ -1,0 +1,84 @@
+{{define "env_form"}}
+<div class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+  <div class="bg-white rounded shadow-lg w-full max-w-3xl flex flex-col" style="max-height:90vh;">
+    <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+      <h3 class="text-lg font-semibold">配置（.env）</h3>
+      <button type="button" class="btn px-2 py-1 text-sm" hx-get="{{mount "/admin/close"}}" hx-target="#modal" hx-swap="innerHTML">✕</button>
+    </div>
+    <form class="flex flex-col" style="flex:1; min-height:0;" hx-post="{{mount "/admin/env"}}" hx-target="#modal" hx-swap="innerHTML">
+      <div class="px-6 py-4 space-y-4 overflow-auto" style="flex:1; min-height:0;">
+        <div class="text-xs text-slate-500">写入：<code>{{.EnvFile}}</code>（保存后需重启服务生效）</div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-slate-700">SERVER_HOST</label>
+            <input type="text" name="SERVER_HOST" value="{{index .Values "SERVER_HOST"}}" class="mt-1 block w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500" required>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700">SERVER_PORT</label>
+            <input type="number" name="SERVER_PORT" value="{{index .Values "SERVER_PORT"}}" class="mt-1 block w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500" min="1" max="65535" required>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700">TOKEN</label>
+            <input type="text" name="TOKEN" value="{{index .Values "TOKEN"}}" class="mt-1 block w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700">DEFAULT_UPSTREAM_BASE_URL</label>
+            <input type="text" name="DEFAULT_UPSTREAM_BASE_URL" value="{{index .Values "DEFAULT_UPSTREAM_BASE_URL"}}" class="mt-1 block w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700">DATABASE_PATH</label>
+            <input type="text" name="DATABASE_PATH" value="{{index .Values "DATABASE_PATH"}}" class="mt-1 block w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700">LOG_DIR</label>
+            <input type="text" name="LOG_DIR" value="{{index .Values "LOG_DIR"}}" class="mt-1 block w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700">AUTH_DIR</label>
+            <input type="text" name="AUTH_DIR" value="{{index .Values "AUTH_DIR"}}" class="mt-1 block w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500">
+            <p class="mt-1 text-xs text-slate-500">仅用于导入旧版文件（&lt;AUTH_DIR&gt;/&lt;id&gt;.json）</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700">WEB_ADMIN_USER</label>
+            <input type="text" name="WEB_ADMIN_USER" value="{{index .Values "WEB_ADMIN_USER"}}" class="mt-1 block w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700">WEB_ADMIN_PASS</label>
+            <input type="password" name="WEB_ADMIN_PASS" value="{{index .Values "WEB_ADMIN_PASS"}}" class="mt-1 block w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700">LOGIN_CLIENT_ID</label>
+            <input type="text" name="LOGIN_CLIENT_ID" value="{{index .Values "LOGIN_CLIENT_ID"}}" class="mt-1 block w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700">LOGIN_ISSUER</label>
+            <input type="text" name="LOGIN_ISSUER" value="{{index .Values "LOGIN_ISSUER"}}" class="mt-1 block w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700">LOGIN_CALLBACK_HOST</label>
+            <input type="text" name="LOGIN_CALLBACK_HOST" value="{{index .Values "LOGIN_CALLBACK_HOST"}}" class="mt-1 block w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700">LOGIN_REDIRECT_HOST</label>
+            <input type="text" name="LOGIN_REDIRECT_HOST" value="{{index .Values "LOGIN_REDIRECT_HOST"}}" class="mt-1 block w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700">LOGIN_CALLBACK_PORT</label>
+            <input type="number" name="LOGIN_CALLBACK_PORT" value="{{index .Values "LOGIN_CALLBACK_PORT"}}" class="mt-1 block w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500" min="1" max="65535">
+          </div>
+        </div>
+      </div>
+
+      <div class="px-6 py-4 border-t border-slate-200 flex justify-end space-x-3">
+        <button type="button" class="btn px-4 py-2 text-sm" hx-get="{{mount "/admin/close"}}" hx-target="#modal" hx-swap="innerHTML">取消</button>
+        <button type="submit" class="btn px-4 py-2 text-sm">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}

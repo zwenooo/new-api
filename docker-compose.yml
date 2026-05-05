@@ -1,0 +1,100 @@
+services:
+  new-api:
+    image: ${NEW_API_IMAGE:-new-api:local}
+    build:
+      context: .
+    container_name: new-api
+    restart: always
+    labels:
+      - io.codexx.health-watch.restart=true
+    command: --log-dir /app/logs
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data
+      - ./logs:/app/logs
+    env_file:
+      - ./data/.env
+    environment:
+      # DB connection pool (avoid MySQL overload). Can be overridden in ./data/.env
+      - SQL_MAX_OPEN_CONNS=${SQL_MAX_OPEN_CONNS:-100}
+      - SQL_MAX_IDLE_CONNS=${SQL_MAX_IDLE_CONNS:-20}
+      - SQL_MAX_LIFETIME=${SQL_MAX_LIFETIME:-300}
+      # Keep production logs focused on warnings/errors unless explicitly re-enabled.
+      - GIN_ACCESS_LOG_ENABLED=${GIN_ACCESS_LOG_ENABLED:-false}
+      - GORM_SQL_LOG_ENABLED=${GORM_SQL_LOG_ENABLED:-false}
+      - REQUEST_DETAIL_LOG_ENABLED=${REQUEST_DETAIL_LOG_ENABLED:-false}
+    #      - STREAMING_TIMEOUT=300  # 流模式无响应超时时间，单位秒，默认120秒，如果出现空补全可以尝试改为更大值
+    #      - SESSION_SECRET=random_string  # 多机部署时设置，必须修改这个随机字符串！！！！！！！
+    #      - NODE_TYPE=slave  # Uncomment for slave node in multi-node deployment
+    #      - SYNC_FREQUENCY=60  # Uncomment if regular database syncing is needed
+    #      - FRONTEND_BASE_URL=https://example.com  # Uncomment for multi-node deployment with front-end URL
+
+    depends_on:
+      redis:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -q '\"success\"[[:space:]]*:[[:space:]]*true'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    restart: always
+    labels:
+      - io.codexx.health-watch.restart=true
+    env_file:
+      - ./data/.env
+    command: ["sh","-c","redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    healthcheck:
+      test: ["CMD-SHELL", "if [ -n \"$$REDIS_PASSWORD\" ]; then redis-cli -a \"$$REDIS_PASSWORD\" ping; else redis-cli ping; fi | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  mysql:
+    image: mysql:8.2
+    container_name: mysql
+    restart: always
+    labels:
+      - io.codexx.health-watch.restart=true
+    env_file:
+      - ./data/.env
+    volumes:
+      - ./mysql:/var/lib/mysql
+      - ./mysql-conf.d:/etc/mysql/conf.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    # ports:
+    #   - "3306:3306"  # If you want to access MySQL from outside Docker, uncomment
+
+  health-watch:
+    image: docker:cli
+    container_name: new-api-health-watch
+    restart: always
+    depends_on:
+      - new-api
+      - redis
+      - mysql
+    environment:
+      - CHECK_INTERVAL=${HEALTH_WATCH_INTERVAL:-10}
+      - LOG_TAIL=${HEALTH_WATCH_LOG_TAIL:-200}
+      - UNHEALTHY_GRACE_PERIOD=${HEALTH_WATCH_UNHEALTHY_GRACE_PERIOD:-60}
+      - RESTART_BASE_COOLDOWN=${HEALTH_WATCH_RESTART_BASE_COOLDOWN:-120}
+      - RESTART_MAX_COOLDOWN=${HEALTH_WATCH_RESTART_MAX_COOLDOWN:-1800}
+      - WATCH_CONTAINERS=new-api redis mysql
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./health-watch.sh:/watch/health-watch.sh:ro
+      - ./logs/docker-health:/var/log/docker-health
+    command: ["/bin/sh", "/watch/health-watch.sh"]
