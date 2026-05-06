@@ -18,14 +18,25 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useState, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { FaGithub } from 'react-icons/fa';
 import { getFooterHTML, getLogo, getSystemName } from '../../helpers';
 import { StatusContext } from '../../context/Status';
 
 const UPSTREAM_SOURCE_URL = 'https://github.com/QuantumNous/new-api';
 const PUBLIC_SOURCE_URL = 'https://github.com/zwenooo/new-api';
 const AGPL_LICENSE_URL = 'https://www.gnu.org/licenses/agpl-3.0.html';
+
+const normalizeCopyrightYear = (html, year) => {
+  if (!html) {
+    return html;
+  }
+  return html.replace(
+    /(©|&copy;)\s*20\d{2}/gi,
+    (_, mark) => `${mark} ${year}`,
+  );
+};
 
 const FooterBar = () => {
   const { t } = useTranslation();
@@ -47,22 +58,44 @@ const FooterBar = () => {
   };
 
   const currentYear = new Date().getFullYear();
+  const normalizedFooter = useMemo(
+    () => normalizeCopyrightYear(footer, currentYear),
+    [footer, currentYear],
+  );
+  const sourceLabel = t('GitHub 源码');
+  const sourceLink = useMemo(
+    () => (
+      <a
+        href={sourceUrl}
+        target='_blank'
+        rel='noopener noreferrer'
+        className='app-footer-icon-link'
+        aria-label={sourceLabel}
+        title={sourceLabel}
+      >
+        <FaGithub aria-hidden='true' size={16} />
+      </a>
+    ),
+    [sourceUrl, sourceLabel],
+  );
 
   const attribution = useMemo(
     () => (
       <div className='app-footer-attribution'>
-        <span>{t('基于 New API 修改发布')}</span>
-        <span className='app-footer-separator'>/</span>
         <span>
-          {t('设计与开发由')}{' '}
-          <a
-            href={UPSTREAM_SOURCE_URL}
-            target='_blank'
-            rel='noopener noreferrer'
-            className='app-footer-link app-footer-link--primary'
-          >
-            New API
-          </a>
+          <Trans
+            i18nKey='footer.modifiedRelease'
+            components={{
+              source: (
+                <a
+                  href={UPSTREAM_SOURCE_URL}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='app-footer-link app-footer-link--primary'
+                />
+              ),
+            }}
+          />
         </span>
         {version && (
           <>
@@ -109,14 +142,7 @@ const FooterBar = () => {
                   <Link to='/about' className='app-footer-link'>
                     {t('关于')}
                   </Link>
-                  <a
-                    href={sourceUrl}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='app-footer-link'
-                  >
-                    {t('对应源码')}
-                  </a>
+                  {sourceLink}
                   <a
                     href={AGPL_LICENSE_URL}
                     target='_blank'
@@ -132,7 +158,7 @@ const FooterBar = () => {
         </div>
       </footer>
     ),
-    [logo, systemName, t, currentYear, attribution, sourceUrl],
+    [logo, systemName, t, currentYear, attribution, sourceLink],
   );
 
   useEffect(() => {
@@ -145,18 +171,11 @@ const FooterBar = () => {
         <div className='app-footer-custom'>
           <div
             className='custom-footer'
-            dangerouslySetInnerHTML={{ __html: footer }}
+            dangerouslySetInnerHTML={{ __html: normalizedFooter }}
           ></div>
           <div className='app-footer-custom-attribution'>
             {attribution}
-            <a
-              href={sourceUrl}
-              target='_blank'
-              rel='noopener noreferrer'
-              className='app-footer-link'
-            >
-              {t('对应源码')}
-            </a>
+            {sourceLink}
             <a
               href={AGPL_LICENSE_URL}
               target='_blank'

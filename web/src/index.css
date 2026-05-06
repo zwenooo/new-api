@@ -3421,6 +3421,24 @@ html.dark .app-footer-mark {
   color: var(--semi-color-text-0);
 }
 
+.app-footer-icon-link {
+  display: inline-flex;
+  height: 24px;
+  width: 24px;
+  align-items: center;
+  justify-content: center;
+  color: var(--semi-color-text-2);
+  text-decoration: none;
+  transition:
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.app-footer-icon-link:hover {
+  color: var(--semi-color-text-0);
+  transform: translateY(-1px);
+}
+
 .app-footer-link--primary {
   color: var(--semi-color-primary);
 }

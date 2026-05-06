@@ -40,6 +40,8 @@
   "展开侧边栏": "展开侧边栏",
   "关闭侧边栏": "关闭侧边栏",
   "注销成功!": "注销成功!",
+  "footer.modifiedRelease": "基于 <source>New API</source> 修改发布",
+  "GitHub 源码": "GitHub 源码",
   "代理设置": "代理设置",
   "更新Worker设置": "更新Worker设置",
   "SSRF防护设置": "SSRF防护设置",
