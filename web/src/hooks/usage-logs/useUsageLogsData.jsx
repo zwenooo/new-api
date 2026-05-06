@@ -30,6 +30,9 @@ import {
   renderQuota,
   renderNumber,
   getLogOther,
+  getUsageLogTokenDisplay,
+  isPlaygroundLogRecord,
+  PLAYGROUND_LOG_TOKEN_VALUE,
   copy,
   renderClaudeLogContent,
   renderLogContent,
@@ -41,6 +44,30 @@ import {
 } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
+
+const buildGroupFilterOptions = (items, shouldInclude = () => true) => {
+  return (Array.isArray(items) ? items : [])
+    .map((item) => {
+      if (!shouldInclude(item)) {
+        return null;
+      }
+      const idRaw = Number(item?.id ?? 0);
+      const id = Number.isFinite(idRaw) ? Math.floor(idRaw) : 0;
+      if (id <= 0) {
+        return null;
+      }
+      const label = String(item?.display_name || item?.code || '').trim();
+      if (!label) {
+        return null;
+      }
+      return {
+        label,
+        value: String(id),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => Number(a.value) - Number(b.value));
+};
 
 export const useLogsData = () => {
   const { t } = useTranslation();
@@ -76,6 +103,13 @@ export const useLogsData = () => {
   const [loading, setLoading] = useState(false);
   const [loadingStat, setLoadingStat] = useState(false);
   const [groupLabelById, setGroupLabelById] = useState({});
+  const [groupFilterOptions, setGroupFilterOptions] = useState([]);
+  const [tokenFilterOptions, setTokenFilterOptions] = useState(() => [
+    {
+      label: t('操练场'),
+      value: PLAYGROUND_LOG_TOKEN_VALUE,
+    },
+  ]);
   const [activePage, setActivePage] = useState(1);
   const [logCount, setLogCount] = useState(0);
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
@@ -129,7 +163,8 @@ export const useLogsData = () => {
           return;
         }
         const map = {};
-        (Array.isArray(data) ? data : []).forEach((g) => {
+        const list = Array.isArray(data) ? data : [];
+        list.forEach((g) => {
           const idRaw = Number(g?.id ?? 0);
           const id = Number.isFinite(idRaw) ? Math.floor(idRaw) : 0;
           if (id <= 0) return;
@@ -138,11 +173,37 @@ export const useLogsData = () => {
           map[id] = label;
         });
         setGroupLabelById(map);
+        if (isAdminUser) {
+          setGroupFilterOptions(buildGroupFilterOptions(list));
+        }
       } catch (e) {
         showError(e?.message || t('获取分组失败'));
       }
     })();
-  }, [t]);
+  }, [isAdminUser, t]);
+
+  useEffect(() => {
+    if (isAdminUser) {
+      return;
+    }
+    (async () => {
+      try {
+        const res = await API.get('/api/user/self/groups');
+        const { success, message, data } = res.data || {};
+        if (!success) {
+          setGroupFilterOptions([]);
+          showError(message || t('获取分组失败'));
+          return;
+        }
+        setGroupFilterOptions(
+          buildGroupFilterOptions(data, (item) => Boolean(item?.billable)),
+        );
+      } catch (e) {
+        setGroupFilterOptions([]);
+        showError(e?.message || t('获取分组失败'));
+      }
+    })();
+  }, [isAdminUser, t]);
 
   // Load saved column preferences from localStorage
   useEffect(() => {
@@ -264,6 +325,84 @@ export const useLogsData = () => {
     };
   };
 
+  const createEffectiveLogQueryValues = (values) => {
+    const nextValues = { ...values };
+    if (!isAdminUser && nextValues.token_name === PLAYGROUND_LOG_TOKEN_VALUE) {
+      nextValues.token_name = '';
+    }
+    return nextValues;
+  };
+
+  const filterLogsForClientOnlyToken = (items, tokenName) => {
+    if (isAdminUser || tokenName !== PLAYGROUND_LOG_TOKEN_VALUE) {
+      return items;
+    }
+    return (Array.isArray(items) ? items : []).filter(isPlaygroundLogRecord);
+  };
+
+  const getClientOnlyTokenStat = (items, tokenName) => {
+    if (isAdminUser || tokenName !== PLAYGROUND_LOG_TOKEN_VALUE) {
+      return null;
+    }
+    return (Array.isArray(items) ? items : []).reduce(
+      (acc, log) => ({
+        ...acc,
+        quota: acc.quota + (Number(log?.quota) || 0),
+        visible_quota: acc.visible_quota + (Number(log?.visible_quota) || 0),
+        cost_quota: acc.cost_quota + (Number(log?.cost_quota) || 0),
+        count: acc.count + 1,
+      }),
+      {
+        quota: 0,
+        visible_quota: 0,
+        cost_quota: 0,
+        count: 0,
+        rpm: 0,
+        tpm: 0,
+      },
+    );
+  };
+
+  const syncTokenFilterOptions = (items) => {
+    if (isAdminUser) {
+      return;
+    }
+    setTokenFilterOptions((prevOptions) => {
+      const seenValues = new Set();
+      const options = [];
+      const addOption = (option) => {
+        const value = String(option?.value || '').trim();
+        if (!value || seenValues.has(value)) {
+          return;
+        }
+        seenValues.add(value);
+        options.push({
+          label: option?.label || value,
+          value,
+        });
+      };
+
+      addOption({
+        label: t('操练场'),
+        value: PLAYGROUND_LOG_TOKEN_VALUE,
+      });
+
+      (Array.isArray(prevOptions) ? prevOptions : []).forEach(addOption);
+      (Array.isArray(items) ? items : []).forEach((log) => {
+        const tokenName = String(log?.token_name || '').trim();
+        if (!tokenName) {
+          return;
+        }
+        addOption({
+          label: getUsageLogTokenDisplay(log, t) || tokenName,
+          value: tokenName,
+        });
+      });
+
+      return options;
+    });
+  };
+
   // Statistics functions
   const getLogSelfStat = async () => {
     const {
@@ -273,7 +412,7 @@ export const useLogsData = () => {
       end_timestamp,
       group_id,
       logType: formLogType,
-    } = getFormValues();
+    } = createEffectiveLogQueryValues(getFormValues());
     const currentLogType = formLogType !== undefined ? formLogType : logType;
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
@@ -299,7 +438,7 @@ export const useLogsData = () => {
       channel,
       group_id,
       logType: formLogType,
-    } = getFormValues();
+    } = createEffectiveLogQueryValues(getFormValues());
     const currentLogType = formLogType !== undefined ? formLogType : logType;
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
@@ -421,12 +560,7 @@ export const useLogsData = () => {
         typeof other?.request_ua === 'string' ? other.request_ua.trim() : '';
       let expandDataLocal = [];
 
-      if (!isAdminUser) {
-        expandDatesLocal[logs[i].key] = expandDataLocal;
-        continue;
-      }
-
-      if (Number(logs[i].channel) > 0) {
+      if (isAdminUser && Number(logs[i].channel) > 0) {
         expandDataLocal.push({
           key: t('渠道信息'),
           value: `${logs[i].channel} - ${logs[i].channel_name || '[未知]'}`,
@@ -470,7 +604,11 @@ export const useLogsData = () => {
       const requestContentLength = Number(
         other?.admin_info?.request_content_length || 0,
       );
-      if (Number.isFinite(requestContentLength) && requestContentLength > 0) {
+      if (
+        isAdminUser &&
+        Number.isFinite(requestContentLength) &&
+        requestContentLength > 0
+      ) {
         expandDataLocal.push({
           key: t('请求体大小'),
           value: formatBytesWithExact(requestContentLength),
@@ -479,7 +617,7 @@ export const useLogsData = () => {
       const headerText = formatHeaderSnapshot(
         other?.admin_info?.request_headers,
       );
-      if (headerText) {
+      if (isAdminUser && headerText) {
         expandDataLocal.push({
           key: t('请求Headers'),
           value: (
@@ -592,6 +730,7 @@ export const useLogsData = () => {
       }
       if (logs[i].type === 2) {
         let modelMapped =
+          isAdminUser &&
           other?.is_model_mapped &&
           other?.upstream_model_name &&
           other?.upstream_model_name !== '';
@@ -715,6 +854,7 @@ export const useLogsData = () => {
     setLoading(true);
 
     let url = '';
+    const formValues = getFormValues();
     const {
       username,
       token_name,
@@ -725,7 +865,7 @@ export const useLogsData = () => {
       channel,
       group_id,
       logType: formLogType,
-    } = getFormValues();
+    } = createEffectiveLogQueryValues(formValues);
 
     const currentLogType =
       customLogType !== null
@@ -745,10 +885,27 @@ export const useLogsData = () => {
     const res = await API.get(url);
     const { success, message, data } = res.data;
     if (success) {
-      const newPageData = data.items;
+      const sourceItems = Array.isArray(data.items) ? data.items : [];
+      syncTokenFilterOptions(sourceItems);
+      const newPageData = filterLogsForClientOnlyToken(
+        sourceItems,
+        formValues.token_name,
+      );
       setActivePage(data.page);
       setPageSize(data.page_size);
-      setLogCount(data.total);
+      setLogCount(
+        !isAdminUser && formValues.token_name === PLAYGROUND_LOG_TOKEN_VALUE
+          ? newPageData.length
+          : data.total,
+      );
+      const clientOnlyStat = getClientOnlyTokenStat(
+        newPageData,
+        formValues.token_name,
+      );
+      if (clientOnlyStat) {
+        setStat(clientOnlyStat);
+        setShowStat(true);
+      }
 
       setLogsFormat(newPageData);
     } else {
@@ -812,9 +969,6 @@ export const useLogsData = () => {
 
   // Check if any record has expandable content
   const hasExpandableRows = () => {
-    if (!isAdminUser) {
-      return false;
-    }
     return logs.length > 0;
   };
 
@@ -826,6 +980,8 @@ export const useLogsData = () => {
     loading,
     loadingStat,
     groupLabelById,
+    groupFilterOptions,
+    tokenFilterOptions,
     activePage,
     logCount,
     pageSize,

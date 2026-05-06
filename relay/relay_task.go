@@ -384,8 +384,10 @@ func clearTaskSubmitBillingSnapshot(task *model.Task) {
 	task.PrivateData.PaygProductAllocations = nil
 	task.PrivateData.PaygProductID = 0
 	task.PrivateData.PayTokenProductID = 0
+	task.PrivateData.PayTokenProductAllocations = nil
 	task.PrivateData.RequestSubscriptionID = 0
 	task.PrivateData.PayRequestProductID = 0
+	task.PrivateData.PayRequestProductAllocations = nil
 	task.PrivateData.FinalPreConsumedQuota = 0
 	task.PrivateData.FinalVisibleQuota = 0
 	task.PrivateData.FinalCostQuota = 0
@@ -434,8 +436,10 @@ func syncTaskSubmitBillingSnapshot(task *model.Task, info *relaycommon.RelayInfo
 	task.PrivateData.PaygProductID = info.PaygProductId
 	task.PrivateData.PaygProductAllocations = cloneTaskSubmitProductAllocations(info.PaygProductAllocations)
 	task.PrivateData.PayTokenProductID = info.PayTokenProductId
+	task.PrivateData.PayTokenProductAllocations = cloneTaskSubmitProductAllocations(info.PayTokenProductAllocations)
 	task.PrivateData.RequestSubscriptionID = info.RequestSubscriptionId
 	task.PrivateData.PayRequestProductID = info.PayRequestProductId
+	task.PrivateData.PayRequestProductAllocations = cloneTaskSubmitProductAllocations(info.PayRequestProductAllocations)
 	task.PrivateData.FinalPreConsumedQuota = info.FinalPreConsumedQuota
 	task.PrivateData.FinalPreConsumedTokens = info.FinalPreConsumedTokens
 	task.PrivateData.FinalPreConsumedRequests = info.FinalPreConsumedRequests
@@ -448,6 +452,8 @@ func taskSubmitHasOutstandingReservation(info *relaycommon.RelayInfo) bool {
 	}
 	return len(info.SubscriptionAllocations) > 0 ||
 		len(info.PaygProductAllocations) > 0 ||
+		len(info.PayTokenProductAllocations) > 0 ||
+		len(info.PayRequestProductAllocations) > 0 ||
 		info.PaygProductId != 0 ||
 		info.PayTokenProductId != 0 ||
 		info.RequestSubscriptionId != 0 ||

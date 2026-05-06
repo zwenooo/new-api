@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // RedemptionPreset stores a pre-configured product spec used to generate redemption codes.
@@ -70,6 +71,12 @@ type RedemptionPreset struct {
 
 	CreatedTime int64 `json:"created_time" gorm:"bigint"`
 	UpdatedTime int64 `json:"updated_time" gorm:"bigint"`
+}
+
+type ProductManagementReorderItem struct {
+	Type      string
+	Id        int
+	SortOrder int
 }
 
 func (p *RedemptionPreset) NormalizeAndValidate() error {
@@ -623,7 +630,7 @@ func ListRedemptionPresets() ([]*RedemptionPreset, error) {
 
 func ListSubscriptionRedemptionPresets() ([]*RedemptionPreset, error) {
 	var presets []*RedemptionPreset
-	if err := DB.Where("price_fen > 0 AND enabled = ?", true).
+	if err := DB.Where("enabled = ?", true).
 		Order("sort_order DESC, updated_time DESC, id DESC").
 		Find(&presets).Error; err != nil {
 		return nil, err
@@ -657,6 +664,203 @@ func ListSubscriptionRedemptionPresets() ([]*RedemptionPreset, error) {
 	return filtered, nil
 }
 
+func ReorderProductManagementProducts(items []ProductManagementReorderItem) error {
+	normalized := make([]ProductManagementReorderItem, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
+	var paygChanged, payRequestChanged, payTokenChanged bool
+	for _, item := range items {
+		productType := strings.TrimSpace(item.Type)
+		if productType == "" {
+			return errors.New("商品类型不能为空")
+		}
+		if item.Id <= 0 {
+			return errors.New("商品 id 无效")
+		}
+		if item.SortOrder < 0 {
+			return errors.New("sort_order 不能小于 0")
+		}
+		switch productType {
+		case "subscription", "tokens", "request", "payg", "pay_request", "pay_token":
+		default:
+			return errors.New("商品类型无效")
+		}
+		key := fmt.Sprintf("%s:%d", productType, item.Id)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		normalized = append(normalized, ProductManagementReorderItem{
+			Type:      productType,
+			Id:        item.Id,
+			SortOrder: item.SortOrder,
+		})
+		switch productType {
+		case "payg":
+			paygChanged = true
+		case "pay_request":
+			payRequestChanged = true
+		case "pay_token":
+			payTokenChanged = true
+		}
+	}
+	if len(normalized) == 0 {
+		return errors.New("products 不能为空")
+	}
+
+	if err := DB.Transaction(func(tx *gorm.DB) error {
+		for _, item := range normalized {
+			switch item.Type {
+			case "subscription", "tokens", "request":
+				result := tx.Model(&RedemptionPreset{}).
+					Where("id = ? AND mode = ?", item.Id, item.Type).
+					Update("sort_order", item.SortOrder)
+				if result.Error != nil {
+					return result.Error
+				}
+				if result.RowsAffected == 0 {
+					return fmt.Errorf("商品不存在: %s#%d", item.Type, item.Id)
+				}
+				if err := tx.Model(&RedemptionPresetRevision{}).
+					Where("preset_id = ? AND is_current = ?", item.Id, true).
+					Update("sort_order", item.SortOrder).Error; err != nil {
+					return err
+				}
+			case "payg":
+				result := tx.Model(&PaygProduct{}).
+					Where("id = ?", item.Id).
+					Update("sort_order", item.SortOrder)
+				if result.Error != nil {
+					return result.Error
+				}
+				if result.RowsAffected == 0 {
+					return fmt.Errorf("商品不存在: %s#%d", item.Type, item.Id)
+				}
+				if err := tx.Model(&PaygProductRevision{}).
+					Where("product_id = ? AND is_current = ?", item.Id, true).
+					Update("sort_order", item.SortOrder).Error; err != nil {
+					return err
+				}
+			case "pay_request":
+				result := tx.Model(&PayRequestProduct{}).
+					Where("id = ?", item.Id).
+					Update("sort_order", item.SortOrder)
+				if result.Error != nil {
+					return result.Error
+				}
+				if result.RowsAffected == 0 {
+					return fmt.Errorf("商品不存在: %s#%d", item.Type, item.Id)
+				}
+				if err := tx.Model(&PayRequestProductRevision{}).
+					Where("product_id = ? AND is_current = ?", item.Id, true).
+					Update("sort_order", item.SortOrder).Error; err != nil {
+					return err
+				}
+			case "pay_token":
+				result := tx.Model(&PayTokenProduct{}).
+					Where("id = ?", item.Id).
+					Update("sort_order", item.SortOrder)
+				if result.Error != nil {
+					return result.Error
+				}
+				if result.RowsAffected == 0 {
+					return fmt.Errorf("商品不存在: %s#%d", item.Type, item.Id)
+				}
+				if err := tx.Model(&PayTokenProductRevision{}).
+					Where("product_id = ? AND is_current = ?", item.Id, true).
+					Update("sort_order", item.SortOrder).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		if paygChanged {
+			if err := syncPaygProductsOptionFromDBTx(tx); err != nil {
+				return err
+			}
+		}
+		if payRequestChanged {
+			if err := syncPayRequestProductsOptionFromDBTx(tx); err != nil {
+				return err
+			}
+		}
+		if payTokenChanged {
+			if err := syncPayTokenProductsOptionFromDBTx(tx); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if paygChanged {
+		if err := SyncPaygProductsOptionFromDB(); err != nil {
+			return err
+		}
+		if err := SyncAllClawBoxRelayTokens(); err != nil {
+			return err
+		}
+	}
+	if payRequestChanged {
+		if err := SyncPayRequestProductsOptionFromDB(); err != nil {
+			return err
+		}
+	}
+	if payTokenChanged {
+		if err := SyncPayTokenProductsOptionFromDB(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func syncOptionValueTx(tx *gorm.DB, key string, value string) error {
+	if tx == nil {
+		tx = DB
+	}
+	option := Option{Key: key, Value: value}
+	return tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "key"}},
+		DoUpdates: clause.AssignmentColumns([]string{"value"}),
+	}).Create(&option).Error
+}
+
+func syncPaygProductsOptionFromDBTx(tx *gorm.DB) error {
+	products, err := ListPaygProductsForOptionTx(tx)
+	if err != nil {
+		return err
+	}
+	b, err := common.Marshal(products)
+	if err != nil {
+		return err
+	}
+	return syncOptionValueTx(tx, "payg.products", string(b))
+}
+
+func syncPayRequestProductsOptionFromDBTx(tx *gorm.DB) error {
+	products, err := ListPayRequestProductsForOptionTx(tx)
+	if err != nil {
+		return err
+	}
+	b, err := common.Marshal(products)
+	if err != nil {
+		return err
+	}
+	return syncOptionValueTx(tx, "payg.pay_request_products", string(b))
+}
+
+func syncPayTokenProductsOptionFromDBTx(tx *gorm.DB) error {
+	products, err := ListPayTokenProductsForOptionTx(tx)
+	if err != nil {
+		return err
+	}
+	b, err := common.Marshal(products)
+	if err != nil {
+		return err
+	}
+	return syncOptionValueTx(tx, "payg.pay_token_products", string(b))
+}
+
 func hydrateRedemptionPresetAllowedGroups(preset *RedemptionPreset) error {
 	if preset == nil {
 		return nil
@@ -666,16 +870,28 @@ func hydrateRedemptionPresetAllowedGroups(preset *RedemptionPreset) error {
 	}
 	// allowed_groups is deprecated; use allowed_group_ids as the source of truth.
 	preset.AllowedGroups = nil
-	if len(preset.AllowedGroupIds) == 0 {
-		groupIDs, err := getSubscriptionProductGroupIDsTx(DB, preset.Id)
+	groupIDs, err := getSubscriptionProductGroupIDsTx(DB, preset.Id)
+	if err != nil {
+		return err
+	}
+	if len(groupIDs) == 0 && len(preset.AllowedGroupIds) > 0 {
+		var legacyGroupIDs []int
+		if err := common.Unmarshal([]byte(preset.AllowedGroupIds), &legacyGroupIDs); err != nil {
+			return errors.New("可用分组解析失败")
+		}
+		groupIDs, err = filterExistingSortedIDsTx(DB, legacyGroupIDs)
 		if err != nil {
 			return err
 		}
-		if len(groupIDs) > 0 {
-			if b, err := common.Marshal(groupIDs); err == nil {
-				preset.AllowedGroupIds = JSONValue(b)
-			}
+	}
+	if len(groupIDs) > 0 {
+		if b, err := common.Marshal(groupIDs); err == nil {
+			preset.AllowedGroupIds = JSONValue(b)
+		} else {
+			return err
 		}
+	} else {
+		preset.AllowedGroupIds = nil
 	}
 	return nil
 }

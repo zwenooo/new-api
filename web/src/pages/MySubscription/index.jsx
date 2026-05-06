@@ -44,6 +44,7 @@ import {
 import ConsolePage from '../../components/layout/ConsolePage';
 import { UserContext } from '../../context/User';
 import { useDashboardStats } from '../../hooks/dashboard/useDashboardStats';
+import GroupRatioPill from '../../components/common/ui/GroupRatioPill';
 
 const { Text } = Typography;
 
@@ -62,12 +63,6 @@ const EMPTY_PERFORMANCE_METRICS = {
   avgRPM: '0',
   avgTPM: '0',
   timeDiff: 0,
-};
-
-const formatRatio = (ratioValue) => {
-  const ratio = Number(ratioValue);
-  if (!Number.isFinite(ratio)) return '1';
-  return ratio.toFixed(6).replace(/\.?0+$/, '');
 };
 
 const normalizeGroupIds = (rawIds) => {
@@ -323,9 +318,6 @@ const MySubscription = () => {
     0,
     0,
     0,
-    0,
-    null,
-    null,
     EMPTY_TREND_DATA,
     EMPTY_PERFORMANCE_METRICS,
     navigate,
@@ -347,9 +339,11 @@ const MySubscription = () => {
           {normalized.map((gid) => {
             const label = getGroupLabel(gid);
             return (
-              <Text key={gid} code style={{ fontSize: 12 }}>
-                {`${label} * ${formatRatio(groupRatios?.[gid])}`}
-              </Text>
+              <GroupRatioPill
+                key={gid}
+                label={label}
+                ratio={groupRatios?.[gid]}
+              />
             );
           })}
         </span>
@@ -590,9 +584,11 @@ const MySubscription = () => {
         .sort((a, b) => a.group_id - b.group_id)
         .forEach((cap) => {
           values.push(
-            <Text key={`tok-cap-${cap.group_id}`} code style={{ fontSize: 12 }}>
-              {`${getGroupLabel(cap.group_id)} * ${formatRatio(groupRatios?.[cap.group_id])}`}
-            </Text>,
+            <GroupRatioPill
+              key={`tok-cap-${cap.group_id}`}
+              label={getGroupLabel(cap.group_id)}
+              ratio={groupRatios?.[cap.group_id]}
+            />,
           );
           values.push(
             cap.total_unlimited ? t('无限') : renderNumber(cap.total_remaining),
@@ -751,13 +747,11 @@ const MySubscription = () => {
           : null;
         groupBreakdown.forEach((row) => {
           values.push(
-            <Text
+            <GroupRatioPill
               key={`sub-group-${patchedBase?.title || ''}-${row.group_id}`}
-              code
-              style={{ fontSize: 12 }}
-            >
-              {`${getGroupLabel(row.group_id)} * ${formatRatio(groupRatios?.[row.group_id])}`}
-            </Text>,
+              label={getGroupLabel(row.group_id)}
+              ratio={groupRatios?.[row.group_id]}
+            />,
           );
           values.push(renderQuota(row.daily_quota_used));
           values.push(renderQuota(row.daily_quota_available));
@@ -910,9 +904,11 @@ const MySubscription = () => {
               </span>
               <span className='inline-flex flex-wrap gap-1'>
                 {allowedGroupIds.map((gid) => (
-                  <Text key={gid} code style={{ fontSize: 12 }}>
-                    {`${getGroupLabel(gid)} * ${formatRatio(groupRatios?.[gid])}`}
-                  </Text>
+                  <GroupRatioPill
+                    key={gid}
+                    label={getGroupLabel(gid)}
+                    ratio={groupRatios?.[gid]}
+                  />
                 ))}
               </span>
             </div>

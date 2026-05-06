@@ -201,6 +201,63 @@ func TestConsumeAndRestoreUserPaygQuotaWithAllocations(t *testing.T) {
 	}
 }
 
+func TestDecreaseUserQuotaByBucketPaygAggregatesAcrossBalances(t *testing.T) {
+	db := newPaygUserBalanceTestDB(t)
+	withModelDB(t, db)
+
+	groupX := createTestGroup(t, db, "x")
+	groupY := createTestGroup(t, db, "y")
+
+	user := User{
+		Username:               "payg-bucket-consume",
+		Password:               "password123",
+		Quota:                  2300,
+		PayAsYouGoQuota:        2300,
+		PayAsYouGoHistoryQuota: 2300,
+		GroupId:                groupX.Id,
+		Group:                  groupX.Code,
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	createPaygBalance(t, db, user.Id, 101, 30, 600, []int{groupX.Id})
+	createPaygBalance(t, db, user.Id, 102, 20, 800, []int{groupY.Id})
+	createPaygBalance(t, db, user.Id, 103, 10, 900, []int{groupX.Id})
+
+	productID, err := DecreaseUserQuotaByBucket(user.Id, 1000, UserQuotaBucketPayg, groupX.Id, 0)
+	if err != nil {
+		t.Fatalf("DecreaseUserQuotaByBucket() error = %v", err)
+	}
+	if productID != 101 {
+		t.Fatalf("DecreaseUserQuotaByBucket() productID = %d, want 101", productID)
+	}
+
+	var balances []PaygUserBalance
+	if err := db.Order("product_id ASC").Find(&balances).Error; err != nil {
+		t.Fatalf("reload balances: %v", err)
+	}
+	gotRemaining := map[int]int{}
+	for _, balance := range balances {
+		gotRemaining[balance.ProductId] = balance.RemainingQuota
+	}
+	wantRemaining := map[int]int{101: 0, 102: 800, 103: 500}
+	if !reflect.DeepEqual(gotRemaining, wantRemaining) {
+		t.Fatalf("remaining quotas = %#v, want %#v", gotRemaining, wantRemaining)
+	}
+
+	var storedUser User
+	if err := db.First(&storedUser, user.Id).Error; err != nil {
+		t.Fatalf("reload user: %v", err)
+	}
+	if storedUser.PayAsYouGoQuota != 1300 {
+		t.Fatalf("user payg_quota = %d, want 1300", storedUser.PayAsYouGoQuota)
+	}
+	if storedUser.Quota != 1300 {
+		t.Fatalf("user quota = %d, want 1300", storedUser.Quota)
+	}
+}
+
 func TestConsumeAndRestoreUserPaygQuotaWithAllocationsTracksDustDelta(t *testing.T) {
 	db := newPaygUserBalanceTestDB(t)
 	withModelDB(t, db)

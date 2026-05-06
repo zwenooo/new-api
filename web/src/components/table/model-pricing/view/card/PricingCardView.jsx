@@ -43,6 +43,7 @@ import {
 import PricingCardSkeleton from './PricingCardSkeleton';
 import { useMinimumLoadingTime } from '../../../../../hooks/common/useMinimumLoadingTime';
 import { renderLimitedItems } from '../../../../common/ui/RenderUtils';
+import RatioTag from '../../../../common/ui/RatioTag';
 import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
 
 const CARD_STYLES = {
@@ -338,16 +339,31 @@ const PricingCardView = ({
                       <div className='grid grid-cols-3 gap-2 text-xs text-gray-600'>
                         <div>
                           {t('模型')}:{' '}
-                          {model.quota_type === 0 ? model.model_ratio : t('无')}
+                          {model.quota_type === 0 ? (
+                            <RatioTag value={model.model_ratio} />
+                          ) : (
+                            t('无')
+                          )}
                         </div>
                         <div>
                           {t('补全')}:{' '}
-                          {model.quota_type === 0
-                            ? parseFloat(model.completion_ratio.toFixed(3))
-                            : t('无')}
+                          {model.quota_type === 0 ? (
+                            <RatioTag
+                              value={parseFloat(
+                                model.completion_ratio.toFixed(3),
+                              )}
+                            />
+                          ) : (
+                            t('无')
+                          )}
                         </div>
                         <div>
-                          {t('分组')}: {priceData?.usedGroupRatio ?? '-'}
+                          {t('分组')}:{' '}
+                          {priceData?.usedGroupRatio ? (
+                            <RatioTag value={priceData.usedGroupRatio} />
+                          ) : (
+                            '-'
+                          )}
                         </div>
                       </div>
                     </div>

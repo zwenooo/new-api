@@ -82,6 +82,8 @@ func cloneTaskSubmitRepairPrivateData(privateData model.TaskPrivateData) model.T
 	clone := privateData
 	clone.SubscriptionAllocations = cloneSubscriptionAllocations(privateData.SubscriptionAllocations)
 	clone.PaygProductAllocations = cloneProductQuotaAllocations(privateData.PaygProductAllocations)
+	clone.PayTokenProductAllocations = cloneProductQuotaAllocations(privateData.PayTokenProductAllocations)
+	clone.PayRequestProductAllocations = cloneProductQuotaAllocations(privateData.PayRequestProductAllocations)
 	if privateData.BillingContext != nil {
 		billingContext := *privateData.BillingContext
 		if len(privateData.BillingContext.OtherRatios) > 0 {

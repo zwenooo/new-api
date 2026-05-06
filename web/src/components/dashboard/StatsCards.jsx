@@ -24,6 +24,7 @@ import { Skeleton } from '@douyinfe/semi-ui';
 const getMetricTone = (key) => {
   const toneMap = {
     usage: 'emerald',
+    'today-calls': 'sky',
     cache: 'indigo',
     resource: 'amber',
     history: 'violet',
@@ -57,7 +58,12 @@ const StatsCards = ({ groupedStatsData, loading }) => {
 
   if (allSingleMetricGroups) {
     const gridCols =
-      metricGroups.length === 3 ? 'md:grid-cols-3' : 'md:grid-cols-4';
+      {
+        3: 'md:grid-cols-3',
+        4: 'md:grid-cols-4',
+        5: 'md:grid-cols-5',
+      }[metricGroups.length] || 'md:grid-cols-4';
+
     return (
       <div className={`grid grid-cols-1 gap-3 ${gridCols}`.trim()}>
         {metricGroups.map((group) => {
@@ -111,7 +117,9 @@ const StatsCards = ({ groupedStatsData, loading }) => {
     groupedStatsData.length >= 5 ? 'xl:grid-cols-5' : 'xl:grid-cols-4';
 
   return (
-    <div className={`grid grid-cols-1 gap-3 md:grid-cols-2 ${xlGridCols}`.trim()}>
+    <div
+      className={`grid grid-cols-1 gap-3 md:grid-cols-2 ${xlGridCols}`.trim()}
+    >
       {groupedStatsData.map((group) => (
         <section
           key={group.key}

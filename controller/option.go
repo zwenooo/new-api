@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -126,22 +127,43 @@ func parseNormalizedPaygProducts(raw string) ([]payg_setting.PaygProduct, error)
 		return nil, err
 	}
 	for i := range normalized {
-		if len(normalized[i].AllowedGroupIds) == 0 {
-			ids, err := model.LegacyGroupIDsFromCodes(nil, normalized[i].AllowedGroups)
-			if err != nil {
-				return nil, err
-			}
-			normalized[i].AllowedGroupIds = ids
-			normalized[i].AllowedGroups = nil
-		}
-		if len(normalized[i].AllowedGroupIds) == 0 {
-			return nil, fmt.Errorf("按量付费商品可用分组不能为空")
-		}
-		if err := model.ValidateGroupIDsExist(nil, normalized[i].AllowedGroupIds); err != nil {
+		if err := normalizePayProductAllowedGroups(nil, &normalized[i].AllowedGroupIds, &normalized[i].AllowedGroups, normalized[i].Enabled, normalized[i].Archived, "按量付费商品"); err != nil {
 			return nil, err
 		}
 	}
 	return normalized, nil
+}
+
+func refreshPaygProductsOptionCache(products []payg_setting.PaygProduct, raw string) {
+	common.OptionMapRWMutex.Lock()
+	common.OptionMap["payg.products"] = raw
+	common.OptionMapRWMutex.Unlock()
+	payg_setting.GetPaygSettings().Products = products
+}
+
+func normalizePayProductAllowedGroups(tx *gorm.DB, groupIDs *[]int, legacyGroups *[]string, enabled bool, archived bool, label string) error {
+	if groupIDs == nil || legacyGroups == nil {
+		return fmt.Errorf("%s可用分组无效", label)
+	}
+	if len(*groupIDs) == 0 && len(*legacyGroups) > 0 {
+		ids, err := model.LegacyGroupIDsFromCodes(tx, *legacyGroups)
+		if err != nil {
+			return err
+		}
+		*groupIDs = ids
+	}
+	*groupIDs = model.NormalizeUniqueSortedIDs(*groupIDs)
+	*legacyGroups = nil
+	if len(*groupIDs) == 0 {
+		if enabled && !archived {
+			return fmt.Errorf("%s可用分组不能为空", label)
+		}
+		return nil
+	}
+	if tx != nil {
+		return model.ValidateGroupIDsExist(tx, *groupIDs)
+	}
+	return model.ValidateGroupIDsExist(nil, *groupIDs)
 }
 
 func syncPaygProductsToDB(products []payg_setting.PaygProduct) error {
@@ -153,11 +175,31 @@ func syncPaygProductsToDB(products []payg_setting.PaygProduct) error {
 	for _, p := range products {
 		keepProductIDs = append(keepProductIDs, p.Id)
 		groupIDs := model.NormalizeUniqueSortedIDs(p.AllowedGroupIds)
-		if len(groupIDs) == 0 {
+		if len(groupIDs) == 0 && p.Enabled && !p.Archived {
 			_ = tx.Rollback()
 			return fmt.Errorf("按量付费商品 #%d 可用分组为空", p.Id)
 		}
-		if err := model.ValidateGroupIDsExist(tx, groupIDs); err != nil {
+		if len(groupIDs) > 0 {
+			if err := model.ValidateGroupIDsExist(tx, groupIDs); err != nil {
+				_ = tx.Rollback()
+				return err
+			}
+		}
+		if p.Archived {
+			p.Enabled = false
+		}
+		if err := tx.Select("id", "name", "description", "enabled", "archived", "sort_order", "stock").Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"name", "description", "enabled", "archived", "sort_order", "stock"}),
+		}).Create(&model.PaygProduct{
+			Id:          p.Id,
+			Name:        p.Name,
+			Description: p.Description,
+			Enabled:     p.Enabled,
+			Archived:    p.Archived,
+			SortOrder:   p.SortOrder,
+			Stock:       p.Stock,
+		}).Error; err != nil {
 			_ = tx.Rollback()
 			return err
 		}
@@ -175,27 +217,14 @@ func syncPaygProductsToDB(products []payg_setting.PaygProduct) error {
 				return err
 			}
 		}
-		if err := tx.Select("id", "name", "description", "enabled", "archived", "sort_order", "stock").Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "id"}},
-			DoUpdates: clause.AssignmentColumns([]string{"name", "description", "enabled", "archived", "sort_order", "stock"}),
-		}).Create(&model.PaygProduct{
-			Id:          p.Id,
-			Name:        p.Name,
-			Description: p.Description,
-			Enabled:     p.Enabled,
-			Archived:    p.Archived,
-			SortOrder:   p.SortOrder,
-			Stock:       p.Stock,
-		}).Error; err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-		groupsJSON := model.JSONValue(nil)
-		if b, gErr := common.Marshal(groupIDs); gErr == nil {
-			groupsJSON = model.JSONValue(b)
-		} else {
-			_ = tx.Rollback()
-			return gErr
+		var groupsJSON model.JSONValue
+		if len(groupIDs) > 0 {
+			if b, gErr := common.Marshal(groupIDs); gErr == nil {
+				groupsJSON = model.JSONValue(b)
+			} else {
+				_ = tx.Rollback()
+				return gErr
+			}
 		}
 		if _, err := model.EnsureCurrentPaygProductRevisionTx(tx, p.Id); err != nil {
 			_ = tx.Rollback()
@@ -218,23 +247,31 @@ func syncPaygProductsToDB(products []payg_setting.PaygProduct) error {
 		}
 	}
 	keepProductIDs = model.NormalizeUniqueSortedIDs(keepProductIDs)
-	if len(keepProductIDs) == 0 {
-		if err := tx.Where("1 = 1").Delete(&model.PaygProductGroup{}).Error; err != nil {
+	var missingProductIDs []int
+	missingProductsQuery := tx.Model(&model.PaygProduct{}).
+		Where("(archived = ? OR enabled = ?)", false, true)
+	if len(keepProductIDs) > 0 {
+		missingProductsQuery = missingProductsQuery.Where("id NOT IN ?", keepProductIDs)
+	}
+	if err := missingProductsQuery.Order("id ASC").Pluck("id", &missingProductIDs).Error; err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	if len(missingProductIDs) > 0 {
+		if err := tx.Model(&model.PaygProduct{}).
+			Where("id IN ?", missingProductIDs).
+			Updates(map[string]interface{}{
+				"enabled":  false,
+				"archived": true,
+			}).Error; err != nil {
 			_ = tx.Rollback()
 			return err
 		}
-		if err := tx.Where("1 = 1").Delete(&model.PaygProduct{}).Error; err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-	} else {
-		if err := tx.Where("product_id NOT IN ?", keepProductIDs).Delete(&model.PaygProductGroup{}).Error; err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-		if err := tx.Where("id NOT IN ?", keepProductIDs).Delete(&model.PaygProduct{}).Error; err != nil {
-			_ = tx.Rollback()
-			return err
+		for _, productID := range missingProductIDs {
+			if _, err := model.EnsureCurrentPaygProductRevisionTx(tx, productID); err != nil {
+				_ = tx.Rollback()
+				return err
+			}
 		}
 	}
 	if err := model.BackfillUsersPaygSnapshotFromBalances(tx); err != nil {
@@ -249,7 +286,31 @@ func syncPaygProductsToDB(products []payg_setting.PaygProduct) error {
 		_ = tx.Rollback()
 		return err
 	}
-	return tx.Commit().Error
+	dbProducts, err := model.ListPaygProductsForOptionTx(tx)
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	dbProductsJSON, err := json.Marshal(dbProducts)
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	if err := tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "key"}},
+		DoUpdates: clause.AssignmentColumns([]string{"value"}),
+	}).Create(&model.Option{
+		Key:   "payg.products",
+		Value: string(dbProductsJSON),
+	}).Error; err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	refreshPaygProductsOptionCache(dbProducts, string(dbProductsJSON))
+	return nil
 }
 
 func rollbackPaygProductsOption(oldVal string) error {
@@ -360,26 +421,7 @@ func updateOptionInternal(c *gin.Context, option OptionUpdateRequest) {
 		}
 		// Normalize legacy allowed_groups -> allowed_group_ids, and validate group ids exist.
 		for i := range normalized {
-			if len(normalized[i].AllowedGroupIds) == 0 {
-				ids, err := model.LegacyGroupIDsFromCodes(nil, normalized[i].AllowedGroups)
-				if err != nil {
-					c.JSON(http.StatusOK, gin.H{
-						"success": false,
-						"message": err.Error(),
-					})
-					return
-				}
-				normalized[i].AllowedGroupIds = ids
-				normalized[i].AllowedGroups = nil
-			}
-			if len(normalized[i].AllowedGroupIds) == 0 {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": "按次付费商品可用分组不能为空",
-				})
-				return
-			}
-			if err := model.ValidateGroupIDsExist(nil, normalized[i].AllowedGroupIds); err != nil {
+			if err := normalizePayProductAllowedGroups(nil, &normalized[i].AllowedGroupIds, &normalized[i].AllowedGroups, normalized[i].Enabled, normalized[i].Archived, "按次付费商品"); err != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
 					"message": err.Error(),
@@ -418,26 +460,7 @@ func updateOptionInternal(c *gin.Context, option OptionUpdateRequest) {
 		}
 		// Normalize legacy allowed_groups -> allowed_group_ids, and validate group ids exist.
 		for i := range normalized {
-			if len(normalized[i].AllowedGroupIds) == 0 {
-				ids, err := model.LegacyGroupIDsFromCodes(nil, normalized[i].AllowedGroups)
-				if err != nil {
-					c.JSON(http.StatusOK, gin.H{
-						"success": false,
-						"message": err.Error(),
-					})
-					return
-				}
-				normalized[i].AllowedGroupIds = ids
-				normalized[i].AllowedGroups = nil
-			}
-			if len(normalized[i].AllowedGroupIds) == 0 {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": "按token付费商品可用分组不能为空",
-				})
-				return
-			}
-			if err := model.ValidateGroupIDsExist(nil, normalized[i].AllowedGroupIds); err != nil {
+			if err := normalizePayProductAllowedGroups(nil, &normalized[i].AllowedGroupIds, &normalized[i].AllowedGroups, normalized[i].Enabled, normalized[i].Archived, "按token付费商品"); err != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
 					"message": err.Error(),
@@ -855,13 +878,15 @@ func updateOptionInternal(c *gin.Context, option OptionUpdateRequest) {
 			for _, p := range payRequestProductsToSync {
 				keepProductIDs = append(keepProductIDs, p.Id)
 				groupIDs := model.NormalizeUniqueSortedIDs(p.AllowedGroupIds)
-				if len(groupIDs) == 0 {
+				if len(groupIDs) == 0 && p.Enabled && !p.Archived {
 					_ = tx.Rollback()
 					return fmt.Errorf("按次付费商品 #%d 可用分组为空", p.Id)
 				}
-				if err := model.ValidateGroupIDsExist(tx, groupIDs); err != nil {
-					_ = tx.Rollback()
-					return err
+				if len(groupIDs) > 0 {
+					if err := model.ValidateGroupIDsExist(tx, groupIDs); err != nil {
+						_ = tx.Rollback()
+						return err
+					}
 				}
 				if err := tx.Where("product_id = ?", p.Id).Delete(&model.PayRequestProductGroup{}).Error; err != nil {
 					_ = tx.Rollback()
@@ -896,12 +921,14 @@ func updateOptionInternal(c *gin.Context, option OptionUpdateRequest) {
 					_ = tx.Rollback()
 					return err
 				}
-				groupsJSON := model.JSONValue(nil)
-				if b, gErr := common.Marshal(groupIDs); gErr == nil {
-					groupsJSON = model.JSONValue(b)
-				} else {
-					_ = tx.Rollback()
-					return gErr
+				var groupsJSON model.JSONValue
+				if len(groupIDs) > 0 {
+					if b, gErr := common.Marshal(groupIDs); gErr == nil {
+						groupsJSON = model.JSONValue(b)
+					} else {
+						_ = tx.Rollback()
+						return gErr
+					}
 				}
 				if err := tx.Model(&model.PayRequestUserBalance{}).
 					Where("product_id = ?", p.Id).
@@ -967,13 +994,15 @@ func updateOptionInternal(c *gin.Context, option OptionUpdateRequest) {
 			for _, p := range payTokenProductsToSync {
 				keepProductIDs = append(keepProductIDs, p.Id)
 				groupIDs := model.NormalizeUniqueSortedIDs(p.AllowedGroupIds)
-				if len(groupIDs) == 0 {
+				if len(groupIDs) == 0 && p.Enabled && !p.Archived {
 					_ = tx.Rollback()
 					return fmt.Errorf("按token付费商品 #%d 可用分组为空", p.Id)
 				}
-				if err := model.ValidateGroupIDsExist(tx, groupIDs); err != nil {
-					_ = tx.Rollback()
-					return err
+				if len(groupIDs) > 0 {
+					if err := model.ValidateGroupIDsExist(tx, groupIDs); err != nil {
+						_ = tx.Rollback()
+						return err
+					}
 				}
 				if err := tx.Where("product_id = ?", p.Id).Delete(&model.PayTokenProductGroup{}).Error; err != nil {
 					_ = tx.Rollback()
@@ -1008,12 +1037,14 @@ func updateOptionInternal(c *gin.Context, option OptionUpdateRequest) {
 					_ = tx.Rollback()
 					return err
 				}
-				groupsJSON := model.JSONValue(nil)
-				if b, gErr := common.Marshal(groupIDs); gErr == nil {
-					groupsJSON = model.JSONValue(b)
-				} else {
-					_ = tx.Rollback()
-					return gErr
+				var groupsJSON model.JSONValue
+				if len(groupIDs) > 0 {
+					if b, gErr := common.Marshal(groupIDs); gErr == nil {
+						groupsJSON = model.JSONValue(b)
+					} else {
+						_ = tx.Rollback()
+						return gErr
+					}
 				}
 				if err := tx.Model(&model.PayTokenUserBalance{}).
 					Where("product_id = ?", p.Id).

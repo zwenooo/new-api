@@ -50,6 +50,7 @@ export const useDashboardCharts = (
   setLineData,
   setModelColors,
   t,
+  groupLabelMaps = {},
 ) => {
   // ========== 图表规格状态 ==========
   const [spec_pie, setSpecPie] = useState({
@@ -255,6 +256,173 @@ export const useDashboardCharts = (
     },
   });
 
+  const [spec_cache_hit_rate, setSpecCacheHitRate] = useState({
+    type: 'bar',
+    data: [
+      {
+        id: 'cacheHitRateData',
+        values: [],
+      },
+    ],
+    xField: ['Dimension', 'Series'],
+    yField: 'Rate',
+    seriesField: 'Series',
+    stack: false,
+    barGapInGroup: 4,
+    barMaxWidth: 34,
+    legends: {
+      visible: true,
+    },
+    title: {
+      visible: false,
+    },
+    label: {
+      visible: true,
+      position: 'top',
+      formatMethod: (value, datum) =>
+        `${Number(datum?.Rate ?? value ?? 0).toFixed(2)}%`,
+    },
+    axes: [
+      {
+        orient: 'bottom',
+        sampling: false,
+        label: {
+          autoHide: false,
+          autoRotate: true,
+          autoLimit: false,
+          autoRotateAngle: [35],
+        },
+      },
+      {
+        orient: 'left',
+        label: {
+          formatMethod: (value) => `${value}%`,
+        },
+      },
+    ],
+    bar: {
+      state: {
+        hover: {
+          stroke: '#000',
+          lineWidth: 1,
+        },
+      },
+    },
+    tooltip: {
+      mark: {
+        content: [
+          {
+            key: (datum) => datum['Series'],
+            value: (datum) => `${Number(datum['Rate'] || 0).toFixed(2)}%`,
+          },
+          {
+            key: t('分组'),
+            value: (datum) => datum['GroupLabel'] || '-',
+          },
+          {
+            key: 'UA',
+            value: (datum) => datum['RawUA'] || datum['Dimension'] || '-',
+          },
+          {
+            key: t('缓存 Tokens'),
+            value: (datum) => renderNumber(datum['CacheHitTokens'] || 0),
+          },
+          {
+            key: 'Prompt Tokens',
+            value: (datum) => renderNumber(datum['PromptTokensTotal'] || 0),
+          },
+        ],
+      },
+    },
+    color: {
+      specified: {
+        [t('全站均值')]: '#2563eb',
+        [t('自身缓存率')]: '#16a34a',
+        [t('缓存率')]: '#2563eb',
+      },
+    },
+  });
+
+  const [spec_token_quota_bar, setSpecTokenQuotaBar] = useState({
+    type: 'bar',
+    data: [
+      {
+        id: 'tokenQuotaData',
+        values: [],
+      },
+    ],
+    xField: 'TokenName',
+    yField: 'Quota',
+    seriesField: 'TokenName',
+    barMaxWidth: 28,
+    padding: {
+      top: 12,
+      right: 24,
+      bottom: 76,
+      left: 64,
+    },
+    legends: {
+      visible: false,
+    },
+    title: {
+      visible: false,
+    },
+    label: {
+      visible: false,
+    },
+    axes: [
+      {
+        orient: 'bottom',
+        sampling: false,
+        label: {
+          autoHide: false,
+          autoRotate: true,
+          autoLimit: false,
+          autoRotateAngle: [35],
+        },
+      },
+      {
+        orient: 'left',
+        label: {
+          formatMethod: (value) => renderQuota(Number(value) || 0, 2),
+        },
+      },
+    ],
+    bar: {
+      state: {
+        hover: {
+          stroke: '#000',
+          lineWidth: 1,
+        },
+      },
+    },
+    tooltip: {
+      mark: {
+        content: [
+          {
+            key: (datum) => datum['TokenName'],
+            value: (datum) => renderQuota(datum['Quota'] || 0, 4),
+          },
+          {
+            key: t('调用次数'),
+            value: (datum) => renderNumber(datum['Count'] || 0),
+          },
+          {
+            key: t('用户显示消耗'),
+            value: (datum) => renderQuota(datum['VisibleQuota'] || 0, 4),
+          },
+          {
+            key: t('标准费用'),
+            value: (datum) => renderQuota(datum['CostQuota'] || 0, 4),
+          },
+        ],
+      },
+    },
+    color: {
+      specified: {},
+    },
+  });
+
   // ========== 数据处理函数 ==========
   const generateModelColors = useCallback((uniqueModels, modelColors) => {
     const newModelColors = {};
@@ -422,6 +590,162 @@ export const useDashboardCharts = (
     ],
   );
 
+  const updateCacheHitRateData = useCallback(
+    (data, labelMaps = groupLabelMaps) => {
+      const resolveGroupLabel = (group) => {
+        const raw = String(group || '').trim();
+        if (!raw) {
+          return t('未知分组');
+        }
+        const groupId = Number(raw);
+        if (Number.isFinite(groupId) && groupId > 0) {
+          const normalizedId = Math.floor(groupId);
+          return (
+            labelMaps.byId?.[normalizedId] || labelMaps.byCode?.[raw] || raw
+          );
+        }
+        return labelMaps.byCode?.[raw] || raw;
+      };
+
+      const normalizeStat = (item, series) => {
+        const cacheHitTokens = Number(item?.cache_hit_tokens || 0);
+        const promptTokensTotal = Number(item?.prompt_tokens_total || 0);
+        const rate =
+          promptTokensTotal > 0
+            ? (cacheHitTokens / promptTokensTotal) * 100
+            : 0;
+        const rawGroup = String(item?.group || '').trim();
+        const groupLabel = resolveGroupLabel(rawGroup);
+        const rawUA = String(item?.ua || '').trim() || t('未知');
+        const dimension = `${groupLabel} / ${rawUA}`;
+        return {
+          Dimension: dimension,
+          UA: dimension,
+          RawUA: rawUA,
+          Group: rawGroup,
+          GroupLabel: groupLabel,
+          Series: series,
+          Rate: Number(rate.toFixed(4)),
+          CacheHitTokens: cacheHitTokens,
+          PromptTokensTotal: promptTokensTotal,
+        };
+      };
+
+      const isComparisonData =
+        data &&
+        !Array.isArray(data) &&
+        (Array.isArray(data.global) || Array.isArray(data.self));
+      const values = isComparisonData
+        ? [
+            ...(Array.isArray(data.global)
+              ? data.global.map((item) => normalizeStat(item, t('全站均值')))
+              : []),
+            ...(Array.isArray(data.self)
+              ? data.self.map((item) => normalizeStat(item, t('自身缓存率')))
+              : []),
+          ]
+        : (Array.isArray(data) ? data : []).map((item) =>
+            normalizeStat(item, t('缓存率')),
+          );
+      const series = Array.from(new Set(values.map((item) => item.Series)));
+      const seriesSummary = series.map((name) => {
+        const items = values.filter((item) => item.Series === name);
+        const totalHit = items.reduce(
+          (sum, item) => sum + Number(item.CacheHitTokens || 0),
+          0,
+        );
+        const totalPrompt = items.reduce(
+          (sum, item) => sum + Number(item.PromptTokensTotal || 0),
+          0,
+        );
+        return {
+          name,
+          rate: totalPrompt > 0 ? (totalHit / totalPrompt) * 100 : null,
+        };
+      });
+
+      setSpecCacheHitRate((prev) => ({
+        ...prev,
+        data: [{ id: 'cacheHitRateData', values }],
+        legends: {
+          ...prev.legends,
+          visible: series.length > 1,
+        },
+        color: {
+          specified: {
+            ...prev.color?.specified,
+            [t('全站均值')]: '#2563eb',
+            [t('自身缓存率')]: '#16a34a',
+            [t('缓存率')]: '#2563eb',
+          },
+        },
+        title: {
+          ...prev.title,
+          subtext:
+            seriesSummary.length > 0
+              ? seriesSummary
+                  .map((item) =>
+                    item.rate == null
+                      ? `${item.name}：-`
+                      : `${item.name}：${item.rate.toFixed(2)}%`,
+                  )
+                  .join(' · ')
+              : `${t('总计')}：-`,
+        },
+      }));
+    },
+    [groupLabelMaps.byCode, groupLabelMaps.byId, t],
+  );
+
+  const updateTokenQuotaData = useCallback(
+    (data) => {
+      const values = (Array.isArray(data) ? data : [])
+        .map((item) => {
+          const tokenName = String(item?.token_name || '').trim();
+          const quota = Number(item?.quota || 0);
+          return {
+            TokenName: tokenName || t('操练场'),
+            RawTokenName: tokenName,
+            Quota: quota,
+            VisibleQuota: Number(item?.visible_quota || 0),
+            CostQuota: Number(item?.cost_quota || 0),
+            Count: Number(item?.count || 0),
+          };
+        })
+        .filter((item) => item.Quota > 0 || item.Count > 0)
+        .sort((a, b) => b.Quota - a.Quota);
+
+      const totalQuota = values.reduce(
+        (sum, item) => sum + Number(item.Quota || 0),
+        0,
+      );
+      const totalCount = values.reduce(
+        (sum, item) => sum + Number(item.Count || 0),
+        0,
+      );
+      const tokenColors = {};
+      values.forEach((item) => {
+        tokenColors[item.TokenName] = modelToColor(item.TokenName);
+      });
+
+      setSpecTokenQuotaBar((prev) => ({
+        ...prev,
+        data: [{ id: 'tokenQuotaData', values }],
+        title: {
+          ...prev.title,
+          subtext:
+            values.length > 0
+              ? `${t('总计')}：${renderQuota(totalQuota, 2)} · ${t('调用次数')}：${renderNumber(totalCount)}`
+              : `${t('总计')}：-`,
+        },
+        color: {
+          specified: tokenColors,
+        },
+      }));
+    },
+    [t],
+  );
+
   // ========== 初始化图表主题 ==========
   useLayoutEffect(() => {
     const getCssVar = (styles, name, fallback) =>
@@ -515,9 +839,13 @@ export const useDashboardCharts = (
     spec_line,
     spec_model_line,
     spec_rank_bar,
+    spec_cache_hit_rate,
+    spec_token_quota_bar,
 
     // 函数
     updateChartData,
+    updateCacheHitRateData,
+    updateTokenQuotaData,
     generateModelColors,
   };
 };

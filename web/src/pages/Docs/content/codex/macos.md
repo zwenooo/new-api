@@ -53,7 +53,7 @@ model_reasoning_effort = "high"
 
 [model_providers.codez]
 name = "openai"
-base_url = "https://your-new-api.example.com/v1"
+base_url = "https://api.example.com/v1"
 wire_api = "responses"
 requires_openai_auth = true
 ```

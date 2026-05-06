@@ -9,6 +9,8 @@ import (
 	"one-api/logger"
 	"one-api/types"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -217,12 +219,6 @@ func formatUserLogs(logs []*Log) {
 			delete(otherMap, "admin_info")
 			delete(otherMap, "is_model_mapped")
 			delete(otherMap, "upstream_model_name")
-			for key := range otherMap {
-				lowerKey := strings.ToLower(key)
-				if strings.Contains(lowerKey, "price") || strings.Contains(lowerKey, "ratio") {
-					delete(otherMap, key)
-				}
-			}
 		}
 		logs[i].Other = common.MapToJsonStr(otherMap)
 		logs[i].Id = logs[i].Id % 1024
@@ -918,6 +914,92 @@ type CacheStat struct {
 	PromptTokensTotal int `json:"prompt_tokens_total"`
 }
 
+type CacheStatByUA struct {
+	Group             string `json:"group"`
+	UA                string `json:"ua"`
+	CacheHitTokens    int    `json:"cache_hit_tokens"`
+	PromptTokensTotal int    `json:"prompt_tokens_total"`
+}
+
+type TokenQuotaStat struct {
+	TokenName    string `json:"token_name" gorm:"column:token_name"`
+	Quota        int    `json:"quota" gorm:"column:quota"`
+	VisibleQuota int    `json:"visible_quota" gorm:"column:visible_quota"`
+	CostQuota    int    `json:"cost_quota" gorm:"column:cost_quota"`
+	Count        int    `json:"count" gorm:"column:count"`
+}
+
+func normalizeCacheStatUAKeywords(uaKeywords []string) []string {
+	if len(uaKeywords) == 0 {
+		return nil
+	}
+	keywords := make([]string, 0, len(uaKeywords))
+	seen := make(map[string]struct{}, len(uaKeywords))
+	for _, keyword := range uaKeywords {
+		keyword = strings.TrimSpace(keyword)
+		if keyword == "" {
+			continue
+		}
+		normalized := strings.ToLower(keyword)
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		keywords = append(keywords, keyword)
+	}
+	return keywords
+}
+
+func getCacheStatNumber(otherMap map[string]interface{}, key string) int {
+	if otherMap == nil {
+		return 0
+	}
+	switch v := otherMap[key].(type) {
+	case float64:
+		return int(v)
+	case float32:
+		return int(v)
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case int32:
+		return int(v)
+	case string:
+		n, _ := strconv.Atoi(strings.TrimSpace(v))
+		return n
+	default:
+		return 0
+	}
+}
+
+func parseCacheStatOtherForUA(other string) (requestUA string, cacheHitTokens int, cacheCreationTokens int, isClaude bool, err error) {
+	otherStr := strings.TrimSpace(other)
+	if otherStr == "" || !strings.Contains(otherStr, "request_ua") {
+		return "", 0, 0, false, nil
+	}
+	otherMap, err := common.StrToMap(otherStr)
+	if err != nil {
+		return "", 0, 0, false, err
+	}
+	if otherMap == nil {
+		return "", 0, 0, false, nil
+	}
+
+	if v, ok := otherMap["request_ua"]; ok {
+		requestUA = strings.TrimSpace(fmt.Sprint(v))
+	}
+	cacheHitTokens = getCacheStatNumber(otherMap, "cache_tokens")
+	cacheCreationTokens = getCacheStatNumber(otherMap, "cache_creation_tokens")
+	switch v := otherMap["claude"].(type) {
+	case bool:
+		isClaude = v
+	case string:
+		isClaude = strings.EqualFold(strings.TrimSpace(v), "true")
+	}
+	return requestUA, cacheHitTokens, cacheCreationTokens, isClaude, nil
+}
+
 func parseCacheStatOther(other string) (cacheHitTokens int, cacheCreationTokens int, isClaude bool, err error) {
 	otherStr := strings.TrimSpace(other)
 	if otherStr == "" {
@@ -958,6 +1040,235 @@ func parseCacheStatOther(other string) (cacheHitTokens int, cacheCreationTokens 
 		}
 	}
 	return cacheHitTokens, cacheCreationTokens, isClaude, nil
+}
+
+func makeCacheStatByUAKey(group string, ua string) string {
+	return group + "\x00" + ua
+}
+
+func sortedCacheStatByUAResult(stats map[string]CacheStatByUA, keywords []string) []CacheStatByUA {
+	groupsSet := make(map[string]struct{})
+	for _, stat := range stats {
+		if stat.CacheHitTokens == 0 && stat.PromptTokensTotal == 0 {
+			continue
+		}
+		groupsSet[stat.Group] = struct{}{}
+	}
+
+	groups := make([]string, 0, len(groupsSet))
+	for group := range groupsSet {
+		groups = append(groups, group)
+	}
+	sort.Slice(groups, func(i, j int) bool {
+		left := strings.TrimSpace(groups[i])
+		right := strings.TrimSpace(groups[j])
+		if left == "" {
+			return false
+		}
+		if right == "" {
+			return true
+		}
+		leftNum, leftErr := strconv.Atoi(left)
+		rightNum, rightErr := strconv.Atoi(right)
+		if leftErr == nil && rightErr == nil {
+			return leftNum < rightNum
+		}
+		return left < right
+	})
+
+	result := make([]CacheStatByUA, 0, len(groups)*len(keywords))
+	for _, group := range groups {
+		for _, keyword := range keywords {
+			key := makeCacheStatByUAKey(group, keyword)
+			stat, ok := stats[key]
+			if !ok {
+				stat = CacheStatByUA{Group: group, UA: keyword}
+			}
+			result = append(result, stat)
+		}
+	}
+	return result
+}
+
+func SumCacheStatByUA(startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, uaKeywords []string) ([]CacheStatByUA, error) {
+	keywords := normalizeCacheStatUAKeywords(uaKeywords)
+	if len(keywords) == 0 {
+		return []CacheStatByUA{}, nil
+	}
+
+	stats := make(map[string]CacheStatByUA)
+
+	if common.LogSqlType == common.DatabaseTypeMySQL {
+		type cacheStatByUAAggRow struct {
+			Group             string `gorm:"column:group"`
+			UA                string `gorm:"column:ua"`
+			CacheHitTokens    int    `gorm:"column:cache_hit_tokens"`
+			PromptTokensTotal int    `gorm:"column:prompt_tokens_total"`
+		}
+
+		cacheTokensExpr := `CASE WHEN JSON_VALID(other) THEN COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(other, '$.cache_tokens')) AS SIGNED), 0) ELSE 0 END`
+		cacheCreationTokensExpr := `CASE WHEN JSON_VALID(other) THEN COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(other, '$.cache_creation_tokens')) AS SIGNED), 0) ELSE 0 END`
+		isClaudeCond := `JSON_VALID(other) AND JSON_UNQUOTE(JSON_EXTRACT(other, '$.claude')) = 'true'`
+		requestUAExpr := `CASE WHEN JSON_VALID(other) THEN COALESCE(JSON_UNQUOTE(JSON_EXTRACT(other, '$.request_ua')), '') ELSE '' END`
+		requestUAMatchExpr := fmt.Sprintf("LOWER(%s)", requestUAExpr)
+
+		caseParts := make([]string, 0, len(keywords))
+		selectArgs := make([]interface{}, 0, len(keywords)*2)
+		whereParts := make([]string, 0, len(keywords))
+		whereArgs := make([]interface{}, 0, len(keywords))
+		for _, keyword := range keywords {
+			pattern := "%" + escapeLikePattern(strings.ToLower(keyword)) + "%"
+			caseParts = append(caseParts, fmt.Sprintf("WHEN %s LIKE ? ESCAPE '!' THEN ?", requestUAMatchExpr))
+			selectArgs = append(selectArgs, pattern, keyword)
+			whereParts = append(whereParts, fmt.Sprintf("%s LIKE ? ESCAPE '!'", requestUAMatchExpr))
+			whereArgs = append(whereArgs, pattern)
+		}
+
+		selectExpr := fmt.Sprintf(
+			"%s AS `group`, "+
+				"CASE %s ELSE '' END AS ua, "+
+				"COALESCE(SUM(%s), 0) AS cache_hit_tokens, "+
+				"(COALESCE(SUM(prompt_tokens), 0) + COALESCE(SUM(CASE WHEN %s THEN (%s + %s) ELSE 0 END), 0)) AS prompt_tokens_total",
+			logGroupCol,
+			strings.Join(caseParts, " "),
+			cacheTokensExpr,
+			isClaudeCond,
+			cacheTokensExpr,
+			cacheCreationTokensExpr,
+		)
+
+		tx := LOG_DB.Table("logs").
+			Select(selectExpr, selectArgs...).
+			Where("type = ?", LogTypeConsume)
+
+		if username != "" {
+			tx = tx.Where("username = ?", username)
+		}
+		if tokenName != "" {
+			tx = tx.Where("token_name = ?", tokenName)
+		}
+		if startTimestamp != 0 {
+			tx = tx.Where("created_at >= ?", startTimestamp)
+		}
+		if endTimestamp != 0 {
+			tx = tx.Where("created_at <= ?", endTimestamp)
+		}
+		if modelName != "" {
+			tx = tx.Where("model_name like ?", modelName)
+		}
+		if channel != 0 {
+			tx = tx.Where("channel_id = ?", channel)
+		}
+		if group != "" {
+			tx = tx.Where(logGroupCol+" = ?", group)
+		}
+		tx = tx.Where("("+strings.Join(whereParts, " OR ")+")", whereArgs...)
+
+		rows := make([]cacheStatByUAAggRow, 0, len(keywords))
+		if err := tx.Group(logGroupCol + ", ua").Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			if row.UA == "" {
+				continue
+			}
+			row.Group = strings.TrimSpace(row.Group)
+			stats[makeCacheStatByUAKey(row.Group, row.UA)] = CacheStatByUA{
+				Group:             row.Group,
+				UA:                row.UA,
+				CacheHitTokens:    row.CacheHitTokens,
+				PromptTokensTotal: row.PromptTokensTotal,
+			}
+		}
+		return sortedCacheStatByUAResult(stats, keywords), nil
+	}
+
+	tx := LOG_DB.Model(&Log{}).
+		Select(logGroupCol+", prompt_tokens, other").
+		Where("type = ?", LogTypeConsume)
+
+	if username != "" {
+		tx = tx.Where("username = ?", username)
+	}
+	if tokenName != "" {
+		tx = tx.Where("token_name = ?", tokenName)
+	}
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", endTimestamp)
+	}
+	if modelName != "" {
+		tx = tx.Where("model_name like ?", modelName)
+	}
+	if channel != 0 {
+		tx = tx.Where("channel_id = ?", channel)
+	}
+	if group != "" {
+		tx = tx.Where(logGroupCol+" = ?", group)
+	}
+
+	rows, err := tx.Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	lowerKeywords := make([]string, 0, len(keywords))
+	for _, keyword := range keywords {
+		lowerKeywords = append(lowerKeywords, strings.ToLower(keyword))
+	}
+
+	for rows.Next() {
+		var rowGroup string
+		var promptTokens int
+		var other string
+		if err := rows.Scan(&rowGroup, &promptTokens, &other); err != nil {
+			return nil, err
+		}
+
+		requestUA, cacheHitTokens, cacheCreationTokens, isClaude, err := parseCacheStatOtherForUA(other)
+		if err != nil {
+			return nil, err
+		}
+		if requestUA == "" {
+			continue
+		}
+
+		lowerUA := strings.ToLower(requestUA)
+		matchedKeyword := ""
+		for idx, lowerKeyword := range lowerKeywords {
+			if lowerKeyword == "" {
+				continue
+			}
+			if strings.Contains(lowerUA, lowerKeyword) {
+				matchedKeyword = keywords[idx]
+				break
+			}
+		}
+		if matchedKeyword == "" {
+			continue
+		}
+
+		rowGroup = strings.TrimSpace(rowGroup)
+		key := makeCacheStatByUAKey(rowGroup, matchedKeyword)
+		stat := stats[key]
+		stat.Group = rowGroup
+		stat.UA = matchedKeyword
+		stat.CacheHitTokens += cacheHitTokens
+		promptTokensTotal := promptTokens
+		if isClaude {
+			promptTokensTotal = promptTokens + cacheHitTokens + cacheCreationTokens
+		}
+		stat.PromptTokensTotal += promptTokensTotal
+		stats[key] = stat
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return sortedCacheStatByUAResult(stats, keywords), nil
 }
 
 func SumCacheStat(startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (CacheStat, error) {
@@ -1076,6 +1387,58 @@ func SumCacheStat(startTimestamp int64, endTimestamp int64, modelName string, us
 		return CacheStat{}, err
 	}
 	return stat, nil
+}
+
+func buildTokenQuotaStatQuery(startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) *gorm.DB {
+	tx := LOG_DB.Table("logs").
+		Select("token_name, COALESCE(sum(quota), 0) quota, COALESCE(sum(visible_quota), 0) visible_quota, COALESCE(sum(cost_quota), 0) cost_quota, count(*) count").
+		Where("type = ?", LogTypeConsume)
+
+	if username != "" {
+		tx = tx.Where("username = ?", username)
+	}
+	if tokenName != "" {
+		tx = tx.Where("token_name = ?", tokenName)
+	}
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", endTimestamp)
+	}
+	if modelName != "" {
+		tx = tx.Where("model_name like ?", modelName)
+	}
+	if channel != 0 {
+		tx = tx.Where("channel_id = ?", channel)
+	}
+	if group != "" {
+		tx = tx.Where(logGroupCol+" = ?", group)
+	}
+
+	return tx.Group("token_name").Order("quota desc")
+}
+
+func SumTokenQuotaStat(startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) ([]TokenQuotaStat, error) {
+	stats := make([]TokenQuotaStat, 0)
+	err := buildTokenQuotaStatQuery(startTimestamp, endTimestamp, modelName, username, tokenName, channel, group).Scan(&stats).Error
+	if err != nil {
+		return nil, err
+	}
+	return stats, nil
+}
+
+func SumTokenQuotaStatByUserId(userId int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, channel int, group string) ([]TokenQuotaStat, error) {
+	if userId <= 0 {
+		return []TokenQuotaStat{}, nil
+	}
+	stats := make([]TokenQuotaStat, 0)
+	tx := buildTokenQuotaStatQuery(startTimestamp, endTimestamp, modelName, "", tokenName, channel, group)
+	tx = tx.Where("user_id = ?", userId)
+	if err := tx.Scan(&stats).Error; err != nil {
+		return nil, err
+	}
+	return stats, nil
 }
 
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat) {
@@ -1355,6 +1718,158 @@ func SumUsedQuotaByUserId(userId int, logType int, startTimestamp int64, endTime
 	stat.Rpm = rpmTpm.Rpm
 	stat.Tpm = rpmTpm.Tpm
 	return stat
+}
+
+func SumUserCacheStatByUA(userId int, startTimestamp int64, endTimestamp int64, uaKeywords []string) ([]CacheStatByUA, error) {
+	return SumCacheStatByUAForUser(userId, startTimestamp, endTimestamp, uaKeywords)
+}
+
+func SumCacheStatByUAForUser(userId int, startTimestamp int64, endTimestamp int64, uaKeywords []string) ([]CacheStatByUA, error) {
+	keywords := normalizeCacheStatUAKeywords(uaKeywords)
+	if len(keywords) == 0 {
+		return []CacheStatByUA{}, nil
+	}
+
+	stats := make(map[string]CacheStatByUA)
+	if common.LogSqlType == common.DatabaseTypeMySQL {
+		type cacheStatByUAAggRow struct {
+			Group             string `gorm:"column:group"`
+			UA                string `gorm:"column:ua"`
+			CacheHitTokens    int    `gorm:"column:cache_hit_tokens"`
+			PromptTokensTotal int    `gorm:"column:prompt_tokens_total"`
+		}
+
+		cacheTokensExpr := `CASE WHEN JSON_VALID(other) THEN COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(other, '$.cache_tokens')) AS SIGNED), 0) ELSE 0 END`
+		cacheCreationTokensExpr := `CASE WHEN JSON_VALID(other) THEN COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(other, '$.cache_creation_tokens')) AS SIGNED), 0) ELSE 0 END`
+		isClaudeCond := `JSON_VALID(other) AND JSON_UNQUOTE(JSON_EXTRACT(other, '$.claude')) = 'true'`
+		requestUAExpr := `CASE WHEN JSON_VALID(other) THEN COALESCE(JSON_UNQUOTE(JSON_EXTRACT(other, '$.request_ua')), '') ELSE '' END`
+		requestUAMatchExpr := fmt.Sprintf("LOWER(%s)", requestUAExpr)
+
+		caseParts := make([]string, 0, len(keywords))
+		selectArgs := make([]interface{}, 0, len(keywords)*2)
+		whereParts := make([]string, 0, len(keywords))
+		whereArgs := make([]interface{}, 0, len(keywords))
+		for _, keyword := range keywords {
+			pattern := "%" + escapeLikePattern(strings.ToLower(keyword)) + "%"
+			caseParts = append(caseParts, fmt.Sprintf("WHEN %s LIKE ? ESCAPE '!' THEN ?", requestUAMatchExpr))
+			selectArgs = append(selectArgs, pattern, keyword)
+			whereParts = append(whereParts, fmt.Sprintf("%s LIKE ? ESCAPE '!'", requestUAMatchExpr))
+			whereArgs = append(whereArgs, pattern)
+		}
+
+		selectExpr := fmt.Sprintf(
+			"%s AS `group`, "+
+				"CASE %s ELSE '' END AS ua, "+
+				"COALESCE(SUM(%s), 0) AS cache_hit_tokens, "+
+				"(COALESCE(SUM(prompt_tokens), 0) + COALESCE(SUM(CASE WHEN %s THEN (%s + %s) ELSE 0 END), 0)) AS prompt_tokens_total",
+			logGroupCol,
+			strings.Join(caseParts, " "),
+			cacheTokensExpr,
+			isClaudeCond,
+			cacheTokensExpr,
+			cacheCreationTokensExpr,
+		)
+
+		tx := LOG_DB.Table("logs").
+			Select(selectExpr, selectArgs...).
+			Where("user_id = ? AND type = ?", userId, LogTypeConsume)
+		if startTimestamp != 0 {
+			tx = tx.Where("created_at >= ?", startTimestamp)
+		}
+		if endTimestamp != 0 {
+			tx = tx.Where("created_at <= ?", endTimestamp)
+		}
+		tx = tx.Where("("+strings.Join(whereParts, " OR ")+")", whereArgs...)
+
+		rows := make([]cacheStatByUAAggRow, 0, len(keywords))
+		if err := tx.Group(logGroupCol + ", ua").Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			if row.UA == "" {
+				continue
+			}
+			row.Group = strings.TrimSpace(row.Group)
+			stats[makeCacheStatByUAKey(row.Group, row.UA)] = CacheStatByUA{
+				Group:             row.Group,
+				UA:                row.UA,
+				CacheHitTokens:    row.CacheHitTokens,
+				PromptTokensTotal: row.PromptTokensTotal,
+			}
+		}
+		return sortedCacheStatByUAResult(stats, keywords), nil
+	}
+
+	tx := LOG_DB.Model(&Log{}).
+		Select(logGroupCol+", prompt_tokens, other").
+		Where("user_id = ? AND type = ?", userId, LogTypeConsume)
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", endTimestamp)
+	}
+
+	rows, err := tx.Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	lowerKeywords := make([]string, 0, len(keywords))
+	for _, keyword := range keywords {
+		lowerKeywords = append(lowerKeywords, strings.ToLower(keyword))
+	}
+
+	for rows.Next() {
+		var rowGroup string
+		var promptTokens int
+		var other string
+		if err := rows.Scan(&rowGroup, &promptTokens, &other); err != nil {
+			return nil, err
+		}
+
+		requestUA, cacheHitTokens, cacheCreationTokens, isClaude, err := parseCacheStatOtherForUA(other)
+		if err != nil {
+			return nil, err
+		}
+		if requestUA == "" {
+			continue
+		}
+
+		lowerUA := strings.ToLower(requestUA)
+		matchedKeyword := ""
+		for idx, lowerKeyword := range lowerKeywords {
+			if lowerKeyword == "" {
+				continue
+			}
+			if strings.Contains(lowerUA, lowerKeyword) {
+				matchedKeyword = keywords[idx]
+				break
+			}
+		}
+		if matchedKeyword == "" {
+			continue
+		}
+
+		rowGroup = strings.TrimSpace(rowGroup)
+		key := makeCacheStatByUAKey(rowGroup, matchedKeyword)
+		stat := stats[key]
+		stat.Group = rowGroup
+		stat.UA = matchedKeyword
+		stat.CacheHitTokens += cacheHitTokens
+		promptTokensTotal := promptTokens
+		if isClaude {
+			promptTokensTotal = promptTokens + cacheHitTokens + cacheCreationTokens
+		}
+		stat.PromptTokensTotal += promptTokensTotal
+		stats[key] = stat
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return sortedCacheStatByUAResult(stats, keywords), nil
 }
 
 func SumUserCacheStat(userId int, startTimestamp int64, endTimestamp int64) (CacheStat, error) {

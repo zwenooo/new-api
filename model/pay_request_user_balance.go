@@ -2,6 +2,8 @@ package model
 
 import (
 	"errors"
+	"one-api/common"
+	relaycommon "one-api/relay/common"
 	"strings"
 	"unicode/utf8"
 
@@ -57,6 +59,61 @@ func ResolvePayRequestBalanceAllowedGroups(b PayRequestUserBalance) ([]string, e
 		return nil, errors.New("按次付费可用分组为空")
 	}
 	return normalized, nil
+}
+
+func buildPayRequestConsumableAllocationsFromBalances(balances []PayRequestUserBalance, groupID int, requiredRequests int) ([]relaycommon.ProductQuotaAllocation, bool, error) {
+	if groupID <= 0 {
+		return nil, false, errors.New("group_id 无效")
+	}
+	if requiredRequests <= 0 {
+		requiredRequests = 1
+	}
+	left := requiredRequests
+	allocations := make([]relaycommon.ProductQuotaAllocation, 0, len(balances))
+	for _, balance := range balances {
+		if balance.RemainingRequests <= 0 {
+			continue
+		}
+		ids, err := resolvePayRequestBalanceAllowedGroupIDs(balance)
+		if err != nil {
+			return nil, false, err
+		}
+		allowed := false
+		for _, gid := range ids {
+			if gid == groupID {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			continue
+		}
+		useRequests := balance.RemainingRequests
+		if useRequests > left {
+			useRequests = left
+		}
+		if useRequests <= 0 {
+			continue
+		}
+		allocations = append(allocations, relaycommon.ProductQuotaAllocation{
+			ProductId: balance.ProductId,
+			Quota:     useRequests,
+		})
+		left -= useRequests
+		if left <= 0 {
+			return allocations, true, nil
+		}
+	}
+	return allocations, false, nil
+}
+
+func firstProductIDFromProductAllocations(allocations []relaycommon.ProductQuotaAllocation) int {
+	for _, allocation := range allocations {
+		if allocation.ProductId != 0 && allocation.Quota > 0 {
+			return allocation.ProductId
+		}
+	}
+	return 0
 }
 
 // PayRequestUserBalance stores a user's prepaid-request balance per product.
@@ -270,21 +327,14 @@ func FindUserPayRequestConsumableProductIdTx(tx *gorm.DB, userId int, groupID in
 		Find(&balances).Error; err != nil {
 		return 0, false, err
 	}
-	for _, b := range balances {
-		if b.RemainingRequests < requiredRequests {
-			continue
-		}
-		ids, err := resolvePayRequestBalanceAllowedGroupIDs(b)
-		if err != nil {
-			return 0, false, err
-		}
-		for _, gid := range ids {
-			if gid == groupID {
-				return b.ProductId, true, nil
-			}
-		}
+	allocations, ok, err := buildPayRequestConsumableAllocationsFromBalances(balances, groupID, requiredRequests)
+	if err != nil {
+		return 0, false, err
 	}
-	return 0, false, nil
+	if !ok || len(allocations) == 0 {
+		return 0, false, nil
+	}
+	return allocations[0].ProductId, true, nil
 }
 
 // GetUserPayRequestBalanceInfoTx returns the total remaining requests and union of allowed group IDs.
@@ -332,4 +382,144 @@ func GetUserPayRequestBalanceInfoTx(tx *gorm.DB, userId int) (totalRemaining int
 		return total, nil, nil
 	}
 	return total, unionIDs, nil
+}
+
+func consumeUserPayRequestQuotaWithAllocations(userId int, groupID int, count int) ([]relaycommon.ProductQuotaAllocation, error) {
+	if userId <= 0 {
+		return nil, errors.New("userId 无效")
+	}
+	if groupID <= 0 {
+		return nil, errors.New("group_id 无效")
+	}
+	if count <= 0 {
+		return nil, errors.New("count 无效")
+	}
+
+	var allocations []relaycommon.ProductQuotaAllocation
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := lockForUpdate(tx).
+			Select("id", "pay_request_quota", "pay_request_history_quota", "pay_request_allowed_groups").
+			Where("id = ?", userId).
+			First(&user).Error; err != nil {
+			return err
+		}
+		if _, err := syncLockedUserPayRequestSnapshotFromBalancesTx(tx, &user); err != nil {
+			return err
+		}
+		if user.PayRequestQuota < count {
+			return errors.New("按次付费次数不足")
+		}
+
+		var balances []PayRequestUserBalance
+		if err := lockForUpdate(tx).
+			Select("id", "product_id", "allowed_group_ids", "allowed_groups", "remaining_requests", "sort_order").
+			Where("user_id = ? AND remaining_requests > 0", userId).
+			Order("sort_order DESC, product_id DESC, id DESC").
+			Find(&balances).Error; err != nil {
+			return err
+		}
+		if len(balances) == 0 {
+			return errors.New("按次付费次数不足")
+		}
+
+		resolvedAllocations, ok, err := buildPayRequestConsumableAllocationsFromBalances(balances, groupID, count)
+		if err != nil {
+			return err
+		}
+		if !ok || len(resolvedAllocations) == 0 {
+			return errors.New("按次付费次数不足")
+		}
+
+		indexByProductID := make(map[int]int, len(balances))
+		for i := range balances {
+			indexByProductID[balances[i].ProductId] = i
+		}
+		for _, allocation := range resolvedAllocations {
+			idx, ok := indexByProductID[allocation.ProductId]
+			if !ok {
+				return errors.New("按次付费商品余额不存在")
+			}
+			if balances[idx].RemainingRequests < allocation.Quota {
+				return errors.New("按次付费次数不足")
+			}
+			if err := tx.Model(&PayRequestUserBalance{}).
+				Where("id = ?", balances[idx].Id).
+				Update("remaining_requests", gorm.Expr("remaining_requests - ?", allocation.Quota)).Error; err != nil {
+				return err
+			}
+			balances[idx].RemainingRequests -= allocation.Quota
+		}
+
+		if _, err := syncLockedUserPayRequestSnapshotFromBalancesTx(tx, &user); err != nil {
+			return err
+		}
+		allocations = cloneProductQuotaAllocations(resolvedAllocations)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return allocations, nil
+}
+
+func DecreaseUserPayRequestQuotaWithAllocations(userId int, groupID int, count int) ([]relaycommon.ProductQuotaAllocation, error) {
+	allocations, err := consumeUserPayRequestQuotaWithAllocations(userId, groupID, count)
+	if err != nil {
+		return nil, err
+	}
+	if err := invalidateUserCache(userId); err != nil {
+		common.SysLog("failed to invalidate user cache: " + err.Error())
+	}
+	return allocations, nil
+}
+
+func restoreUserPayRequestQuotaWithAllocations(userId int, allocations []relaycommon.ProductQuotaAllocation) error {
+	normalizedAllocations := cloneProductQuotaAllocations(allocations)
+	if userId <= 0 {
+		return errors.New("userId 无效")
+	}
+	if len(normalizedAllocations) == 0 {
+		return errors.New("按次付费商品未指定，无法返还次数")
+	}
+
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := lockForUpdate(tx).
+			Select("id", "pay_request_quota", "pay_request_history_quota", "pay_request_allowed_groups").
+			Where("id = ?", userId).
+			First(&user).Error; err != nil {
+			return err
+		}
+
+		for _, allocation := range normalizedAllocations {
+			var balance PayRequestUserBalance
+			if err := lockForUpdate(tx).
+				Where("user_id = ? AND product_id = ?", userId, allocation.ProductId).
+				First(&balance).Error; err != nil {
+				return err
+			}
+			if balance.RemainingRequests < 0 {
+				return errors.New("remaining_requests 状态错误")
+			}
+			if err := tx.Model(&PayRequestUserBalance{}).
+				Where("id = ?", balance.Id).
+				Update("remaining_requests", gorm.Expr("remaining_requests + ?", allocation.Quota)).Error; err != nil {
+				return err
+			}
+		}
+
+		_, err := syncLockedUserPayRequestSnapshotFromBalancesTx(tx, &user)
+		return err
+	})
+}
+
+func ReturnUserPayRequestQuotaWithAllocations(userId int, allocations []relaycommon.ProductQuotaAllocation) error {
+	if err := restoreUserPayRequestQuotaWithAllocations(userId, allocations); err != nil {
+		return err
+	}
+	if err := invalidateUserCache(userId); err != nil {
+		common.SysLog("failed to invalidate user cache: " + err.Error())
+	}
+	return nil
 }

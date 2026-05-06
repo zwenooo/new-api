@@ -267,6 +267,11 @@ func TestWssPayRequestRoundReservationCommitAndRefund(t *testing.T) {
 	if relayInfo.PayRequestProductId != 99101 {
 		t.Fatalf("PayRequestProductId = %d, want 99101", relayInfo.PayRequestProductId)
 	}
+	if len(relayInfo.PayRequestProductAllocations) != 1 ||
+		relayInfo.PayRequestProductAllocations[0].ProductId != 99101 ||
+		relayInfo.PayRequestProductAllocations[0].Quota != requestUnits {
+		t.Fatalf("PayRequestProductAllocations = %#v, want one allocation for 99101/%d", relayInfo.PayRequestProductAllocations, requestUnits)
+	}
 
 	storedBalance := reloadPreConsumeQuotaPayRequestBalance(t, db, user.Id, 99101)
 	if storedBalance.RemainingRequests != totalRequests-requestUnits {
@@ -283,6 +288,9 @@ func TestWssPayRequestRoundReservationCommitAndRefund(t *testing.T) {
 	}
 	if relayInfo.PayRequestProductId != 0 {
 		t.Fatalf("PayRequestProductId after commit = %d, want 0", relayInfo.PayRequestProductId)
+	}
+	if len(relayInfo.PayRequestProductAllocations) != 0 {
+		t.Fatalf("PayRequestProductAllocations after commit = %#v, want empty", relayInfo.PayRequestProductAllocations)
 	}
 
 	storedBalance = reloadPreConsumeQuotaPayRequestBalance(t, db, user.Id, 99101)
@@ -303,6 +311,9 @@ func TestWssPayRequestRoundReservationCommitAndRefund(t *testing.T) {
 	}
 	if relayInfo.PayRequestProductId != 0 {
 		t.Fatalf("PayRequestProductId after refund = %d, want 0", relayInfo.PayRequestProductId)
+	}
+	if len(relayInfo.PayRequestProductAllocations) != 0 {
+		t.Fatalf("PayRequestProductAllocations after refund = %#v, want empty", relayInfo.PayRequestProductAllocations)
 	}
 
 	storedBalance = reloadPreConsumeQuotaPayRequestBalance(t, db, user.Id, 99101)

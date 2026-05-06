@@ -22,6 +22,8 @@ func taskHasBillingSnapshot(privateData model.TaskPrivateData) bool {
 	return privateData.QuotaBucket != "" ||
 		len(privateData.SubscriptionAllocations) > 0 ||
 		len(privateData.PaygProductAllocations) > 0 ||
+		len(privateData.PayTokenProductAllocations) > 0 ||
+		len(privateData.PayRequestProductAllocations) > 0 ||
 		privateData.PaygProductID != 0 ||
 		privateData.PayTokenProductID != 0 ||
 		privateData.RequestSubscriptionID != 0 ||
@@ -168,21 +170,23 @@ func buildTaskRelayInfo(task *model.Task) (*relaycommon.RelayInfo, bool, error) 
 	}
 	privateData := task.PrivateData
 	info := &relaycommon.RelayInfo{
-		UserId:                      task.UserId,
-		TokenId:                     privateData.TokenID,
-		TokenKey:                    privateData.TokenKey,
-		QuotaBucket:                 privateData.QuotaBucket,
-		UsingGroupId:                privateData.UsingGroupID,
-		SubscriptionAllocations:     cloneSubscriptionAllocations(privateData.SubscriptionAllocations),
-		PaygProductId:               privateData.PaygProductID,
-		PaygProductAllocations:      cloneProductQuotaAllocations(privateData.PaygProductAllocations),
-		PayTokenProductId:           privateData.PayTokenProductID,
-		RequestSubscriptionId:       privateData.RequestSubscriptionID,
-		PayRequestProductId:         privateData.PayRequestProductID,
-		FinalPreConsumedQuota:       privateData.FinalPreConsumedQuota,
-		FinalPreConsumedTokens:      privateData.FinalPreConsumedTokens,
-		FinalPreConsumedRequests:    privateData.FinalPreConsumedRequests,
-		FinalPreConsumedPayRequests: privateData.FinalPreConsumedPayReqs,
+		UserId:                       task.UserId,
+		TokenId:                      privateData.TokenID,
+		TokenKey:                     privateData.TokenKey,
+		QuotaBucket:                  privateData.QuotaBucket,
+		UsingGroupId:                 privateData.UsingGroupID,
+		SubscriptionAllocations:      cloneSubscriptionAllocations(privateData.SubscriptionAllocations),
+		PaygProductId:                privateData.PaygProductID,
+		PaygProductAllocations:       cloneProductQuotaAllocations(privateData.PaygProductAllocations),
+		PayTokenProductId:            privateData.PayTokenProductID,
+		PayTokenProductAllocations:   cloneProductQuotaAllocations(privateData.PayTokenProductAllocations),
+		RequestSubscriptionId:        privateData.RequestSubscriptionID,
+		PayRequestProductId:          privateData.PayRequestProductID,
+		PayRequestProductAllocations: cloneProductQuotaAllocations(privateData.PayRequestProductAllocations),
+		FinalPreConsumedQuota:        privateData.FinalPreConsumedQuota,
+		FinalPreConsumedTokens:       privateData.FinalPreConsumedTokens,
+		FinalPreConsumedRequests:     privateData.FinalPreConsumedRequests,
+		FinalPreConsumedPayRequests:  privateData.FinalPreConsumedPayReqs,
 	}
 	hasSnapshot := taskHasBillingSnapshot(privateData)
 	if privateData.TokenID > 0 && info.TokenKey == "" {
@@ -191,6 +195,16 @@ func buildTaskRelayInfo(task *model.Task) (*relaycommon.RelayInfo, bool, error) 
 	if len(info.PaygProductAllocations) == 0 && info.PaygProductId != 0 && info.FinalPreConsumedQuota > 0 {
 		info.PaygProductAllocations = []relaycommon.ProductQuotaAllocation{
 			{ProductId: info.PaygProductId, Quota: info.FinalPreConsumedQuota},
+		}
+	}
+	if len(info.PayTokenProductAllocations) == 0 && info.PayTokenProductId != 0 && info.FinalPreConsumedTokens > 0 {
+		info.PayTokenProductAllocations = []relaycommon.ProductQuotaAllocation{
+			{ProductId: info.PayTokenProductId, Quota: info.FinalPreConsumedTokens},
+		}
+	}
+	if len(info.PayRequestProductAllocations) == 0 && info.PayRequestProductId != 0 && info.FinalPreConsumedPayRequests > 0 {
+		info.PayRequestProductAllocations = []relaycommon.ProductQuotaAllocation{
+			{ProductId: info.PayRequestProductId, Quota: info.FinalPreConsumedPayRequests},
 		}
 	}
 	return info, hasSnapshot, nil
@@ -274,8 +288,10 @@ func syncTaskOutstandingBillingSnapshot(task *model.Task, info *relaycommon.Rela
 	task.PrivateData.PaygProductID = info.PaygProductId
 	task.PrivateData.PaygProductAllocations = cloneProductQuotaAllocations(info.PaygProductAllocations)
 	task.PrivateData.PayTokenProductID = info.PayTokenProductId
+	task.PrivateData.PayTokenProductAllocations = cloneProductQuotaAllocations(info.PayTokenProductAllocations)
 	task.PrivateData.RequestSubscriptionID = info.RequestSubscriptionId
 	task.PrivateData.PayRequestProductID = info.PayRequestProductId
+	task.PrivateData.PayRequestProductAllocations = cloneProductQuotaAllocations(info.PayRequestProductAllocations)
 	task.PrivateData.FinalPreConsumedQuota = info.FinalPreConsumedQuota
 	task.PrivateData.FinalPreConsumedTokens = info.FinalPreConsumedTokens
 	task.PrivateData.FinalPreConsumedRequests = info.FinalPreConsumedRequests
@@ -290,8 +306,10 @@ func clearTaskRefundSnapshot(task *model.Task) {
 	task.PrivateData.PaygProductID = 0
 	task.PrivateData.PaygProductAllocations = nil
 	task.PrivateData.PayTokenProductID = 0
+	task.PrivateData.PayTokenProductAllocations = nil
 	task.PrivateData.RequestSubscriptionID = 0
 	task.PrivateData.PayRequestProductID = 0
+	task.PrivateData.PayRequestProductAllocations = nil
 	task.PrivateData.FinalPreConsumedQuota = 0
 	task.PrivateData.FinalVisibleQuota = 0
 	task.PrivateData.FinalCostQuota = 0
@@ -383,6 +401,10 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		oldSubscriptionAllocations := cloneSubscriptionAllocations(task.PrivateData.SubscriptionAllocations)
 		oldPaygProductID := task.PrivateData.PaygProductID
 		oldPaygProductAllocations := cloneProductQuotaAllocations(task.PrivateData.PaygProductAllocations)
+		oldPayTokenProductID := task.PrivateData.PayTokenProductID
+		oldPayTokenProductAllocations := cloneProductQuotaAllocations(task.PrivateData.PayTokenProductAllocations)
+		oldPayRequestProductID := task.PrivateData.PayRequestProductID
+		oldPayRequestProductAllocations := cloneProductQuotaAllocations(task.PrivateData.PayRequestProductAllocations)
 		task.PrivateData.FinalPreConsumedQuota = actualQuota
 		if task.PrivateData.QuotaBucket == model.UserQuotaBucketTokens || task.PrivateData.QuotaBucket == model.UserQuotaBucketPayToken {
 			task.PrivateData.FinalPreConsumedTokens = actualQuota
@@ -390,6 +412,10 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		task.PrivateData.SubscriptionAllocations = cloneSubscriptionAllocations(info.SubscriptionAllocations)
 		task.PrivateData.PaygProductID = info.PaygProductId
 		task.PrivateData.PaygProductAllocations = cloneProductQuotaAllocations(info.PaygProductAllocations)
+		task.PrivateData.PayTokenProductID = info.PayTokenProductId
+		task.PrivateData.PayTokenProductAllocations = cloneProductQuotaAllocations(info.PayTokenProductAllocations)
+		task.PrivateData.PayRequestProductID = info.PayRequestProductId
+		task.PrivateData.PayRequestProductAllocations = cloneProductQuotaAllocations(info.PayRequestProductAllocations)
 		if err := task.Update(); err != nil {
 			logger.LogWarn(ctx, fmt.Sprintf("更新任务结算结果失败 task=%s: %s", task.TaskID, err.Error()))
 			if rollbackErr := PostConsumeQuota(info, -quotaDelta, -quotaDelta, 0, false); rollbackErr != nil {
@@ -401,6 +427,10 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 			task.PrivateData.SubscriptionAllocations = oldSubscriptionAllocations
 			task.PrivateData.PaygProductID = oldPaygProductID
 			task.PrivateData.PaygProductAllocations = oldPaygProductAllocations
+			task.PrivateData.PayTokenProductID = oldPayTokenProductID
+			task.PrivateData.PayTokenProductAllocations = oldPayTokenProductAllocations
+			task.PrivateData.PayRequestProductID = oldPayRequestProductID
+			task.PrivateData.PayRequestProductAllocations = oldPayRequestProductAllocations
 			return
 		}
 		adjustTaskSettlementUsageMetrics(ctx, task, quotaDelta)

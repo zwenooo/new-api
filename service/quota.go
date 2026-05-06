@@ -142,12 +142,11 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 		// after group-ratio scaling,
 		// then continue to token quota validation.
 		if requestUnits > 0 && relayInfo.FinalPreConsumedPayRequests == 0 {
-			productId, err := model.PreConsumeUserPayRequestQuotaWithProduct(relayInfo.UserId, relayInfo.UsingGroupId, requestUnits)
+			err := consumeRelayPayRequestQuota(relayInfo, requestUnits)
 			if err != nil {
 				return types.NewErrorWithStatusCode(err, types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 			}
 			relayInfo.FinalPreConsumedPayRequests = requestUnits
-			relayInfo.PayRequestProductId = productId
 		}
 	}
 	token, err := model.GetTokenByKey(strings.TrimLeft(relayInfo.TokenKey, "sk-"), false)
@@ -992,6 +991,22 @@ func setRelayPaygAllocations(relayInfo *relaycommon.RelayInfo, allocations []rel
 	relayInfo.PaygProductId = firstProductIDFromAllocations(relayInfo.PaygProductAllocations)
 }
 
+func setRelayPayTokenAllocations(relayInfo *relaycommon.RelayInfo, allocations []relaycommon.ProductQuotaAllocation) {
+	if relayInfo == nil {
+		return
+	}
+	relayInfo.PayTokenProductAllocations = cloneProductQuotaAllocations(allocations)
+	relayInfo.PayTokenProductId = firstProductIDFromAllocations(relayInfo.PayTokenProductAllocations)
+}
+
+func setRelayPayRequestAllocations(relayInfo *relaycommon.RelayInfo, allocations []relaycommon.ProductQuotaAllocation) {
+	if relayInfo == nil {
+		return
+	}
+	relayInfo.PayRequestProductAllocations = cloneProductQuotaAllocations(allocations)
+	relayInfo.PayRequestProductId = firstProductIDFromAllocations(relayInfo.PayRequestProductAllocations)
+}
+
 func setRelaySubscriptionAllocations(relayInfo *relaycommon.RelayInfo, allocations []relaycommon.SubscriptionUnitAllocation) {
 	if relayInfo == nil {
 		return
@@ -1009,6 +1024,36 @@ func currentRelayPaygAllocations(relayInfo *relaycommon.RelayInfo) []relaycommon
 	if relayInfo.PaygProductId != 0 && relayInfo.FinalPreConsumedQuota > 0 {
 		return []relaycommon.ProductQuotaAllocation{
 			{ProductId: relayInfo.PaygProductId, Quota: relayInfo.FinalPreConsumedQuota},
+		}
+	}
+	return nil
+}
+
+func currentRelayPayTokenAllocations(relayInfo *relaycommon.RelayInfo) []relaycommon.ProductQuotaAllocation {
+	if relayInfo == nil {
+		return nil
+	}
+	if len(relayInfo.PayTokenProductAllocations) > 0 {
+		return cloneProductQuotaAllocations(relayInfo.PayTokenProductAllocations)
+	}
+	if relayInfo.PayTokenProductId != 0 && relayInfo.FinalPreConsumedTokens > 0 {
+		return []relaycommon.ProductQuotaAllocation{
+			{ProductId: relayInfo.PayTokenProductId, Quota: relayInfo.FinalPreConsumedTokens},
+		}
+	}
+	return nil
+}
+
+func currentRelayPayRequestAllocations(relayInfo *relaycommon.RelayInfo) []relaycommon.ProductQuotaAllocation {
+	if relayInfo == nil {
+		return nil
+	}
+	if len(relayInfo.PayRequestProductAllocations) > 0 {
+		return cloneProductQuotaAllocations(relayInfo.PayRequestProductAllocations)
+	}
+	if relayInfo.PayRequestProductId != 0 && relayInfo.FinalPreConsumedPayRequests > 0 {
+		return []relaycommon.ProductQuotaAllocation{
+			{ProductId: relayInfo.PayRequestProductId, Quota: relayInfo.FinalPreConsumedPayRequests},
 		}
 	}
 	return nil
@@ -1033,6 +1078,36 @@ func consumeRelayPaygQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 		return err
 	}
 	setRelayPaygAllocations(relayInfo, appendProductQuotaAllocations(currentRelayPaygAllocations(relayInfo), allocations))
+	return nil
+}
+
+func consumeRelayPayTokenQuota(relayInfo *relaycommon.RelayInfo, tokens int) error {
+	if relayInfo == nil {
+		return errors.New("relayInfo is nil")
+	}
+	if tokens <= 0 {
+		return nil
+	}
+	allocations, err := model.DecreaseUserPayTokenQuotaWithAllocations(relayInfo.UserId, relayInfo.UsingGroupId, tokens)
+	if err != nil {
+		return err
+	}
+	setRelayPayTokenAllocations(relayInfo, appendProductQuotaAllocations(currentRelayPayTokenAllocations(relayInfo), allocations))
+	return nil
+}
+
+func consumeRelayPayRequestQuota(relayInfo *relaycommon.RelayInfo, requests int) error {
+	if relayInfo == nil {
+		return errors.New("relayInfo is nil")
+	}
+	if requests <= 0 {
+		return nil
+	}
+	allocations, err := model.DecreaseUserPayRequestQuotaWithAllocations(relayInfo.UserId, relayInfo.UsingGroupId, requests)
+	if err != nil {
+		return err
+	}
+	setRelayPayRequestAllocations(relayInfo, appendProductQuotaAllocations(currentRelayPayRequestAllocations(relayInfo), allocations))
 	return nil
 }
 
@@ -1083,6 +1158,54 @@ func returnRelayPaygQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 		return err
 	}
 	setRelayPaygAllocations(relayInfo, remaining)
+	return nil
+}
+
+func returnRelayPayTokenQuota(relayInfo *relaycommon.RelayInfo, tokens int) error {
+	if relayInfo == nil {
+		return errors.New("relayInfo is nil")
+	}
+	if tokens <= 0 {
+		return nil
+	}
+	remaining, refund, ok := splitTrailingProductQuotaAllocations(currentRelayPayTokenAllocations(relayInfo), tokens)
+	if !ok {
+		if relayInfo.PayTokenProductId == 0 {
+			return errors.New("按token付费商品未指定，无法返还tokens")
+		}
+		refund = []relaycommon.ProductQuotaAllocation{
+			{ProductId: relayInfo.PayTokenProductId, Quota: tokens},
+		}
+		remaining = nil
+	}
+	if err := model.ReturnUserPayTokenQuotaWithAllocations(relayInfo.UserId, refund); err != nil {
+		return err
+	}
+	setRelayPayTokenAllocations(relayInfo, remaining)
+	return nil
+}
+
+func returnRelayPayRequestQuota(relayInfo *relaycommon.RelayInfo, requests int) error {
+	if relayInfo == nil {
+		return errors.New("relayInfo is nil")
+	}
+	if requests <= 0 {
+		return nil
+	}
+	remaining, refund, ok := splitTrailingProductQuotaAllocations(currentRelayPayRequestAllocations(relayInfo), requests)
+	if !ok {
+		if relayInfo.PayRequestProductId == 0 {
+			return errors.New("按次付费商品未指定，无法返还次数")
+		}
+		refund = []relaycommon.ProductQuotaAllocation{
+			{ProductId: relayInfo.PayRequestProductId, Quota: requests},
+		}
+		remaining = nil
+	}
+	if err := model.ReturnUserPayRequestQuotaWithAllocations(relayInfo.UserId, refund); err != nil {
+		return err
+	}
+	setRelayPayRequestAllocations(relayInfo, remaining)
 	return nil
 }
 
@@ -1146,27 +1269,6 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, userQuotaDelta int, toke
 	requestCountBucket := relayInfo != nil &&
 		(relayInfo.QuotaBucket == model.UserQuotaBucketRequest || relayInfo.QuotaBucket == model.UserQuotaBucketPayRequest)
 
-	getBucketProductID := func() int {
-		if relayInfo == nil {
-			return 0
-		}
-		switch relayInfo.QuotaBucket {
-		case model.UserQuotaBucketPayToken:
-			return relayInfo.PayTokenProductId
-		default:
-			return 0
-		}
-	}
-	setBucketProductID := func(productID int) {
-		if relayInfo == nil || productID == 0 {
-			return
-		}
-		switch relayInfo.QuotaBucket {
-		case model.UserQuotaBucketPayToken:
-			relayInfo.PayTokenProductId = productID
-		}
-	}
-
 	userDelta := userQuotaDelta
 	if requestCountBucket {
 		userDelta = 0
@@ -1174,17 +1276,18 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, userQuotaDelta int, toke
 	if userDelta > 0 {
 		if relayInfo.QuotaBucket == model.UserQuotaBucketPayg {
 			err = consumeRelayPaygQuota(relayInfo, userDelta)
+		} else if relayInfo.QuotaBucket == model.UserQuotaBucketPayToken {
+			err = consumeRelayPayTokenQuota(relayInfo, userDelta)
 		} else if relayInfo.QuotaBucket == model.UserQuotaBucketSubscription || relayInfo.QuotaBucket == model.UserQuotaBucketTokens {
 			err = consumeRelaySubscriptionQuota(relayInfo, userDelta)
 		} else if relayInfo.QuotaBucket != "" {
-			selectedPaygProductId, decErr := model.DecreaseUserQuotaByBucket(
+			_, decErr := model.DecreaseUserQuotaByBucket(
 				relayInfo.UserId,
 				userDelta,
 				relayInfo.QuotaBucket,
 				relayInfo.UsingGroupId,
-				getBucketProductID(),
+				0,
 			)
-			setBucketProductID(selectedPaygProductId)
 			err = decErr
 		} else {
 			err = model.DecreaseUserQuota(relayInfo.UserId, userDelta)
@@ -1214,6 +1317,8 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, userQuotaDelta int, toke
 	} else if userDelta < 0 {
 		if relayInfo.QuotaBucket == model.UserQuotaBucketPayg {
 			err = returnRelayPaygQuota(relayInfo, -userDelta)
+		} else if relayInfo.QuotaBucket == model.UserQuotaBucketPayToken {
+			err = returnRelayPayTokenQuota(relayInfo, -userDelta)
 		} else if relayInfo.QuotaBucket == model.UserQuotaBucketSubscription || relayInfo.QuotaBucket == model.UserQuotaBucketTokens {
 			err = returnRelaySubscriptionQuota(relayInfo, -userDelta)
 		} else if relayInfo.QuotaBucket != "" {
@@ -1222,7 +1327,7 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, userQuotaDelta int, toke
 				-userDelta,
 				relayInfo.QuotaBucket,
 				relayInfo.UsingGroupId,
-				getBucketProductID(),
+				0,
 			)
 		} else {
 			err = model.ReturnUserQuota(relayInfo.UserId, -userDelta)
@@ -1257,6 +1362,8 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, userQuotaDelta int, toke
 			if userDelta > 0 {
 				if relayInfo.QuotaBucket == model.UserQuotaBucketPayg {
 					rollbackErr = returnRelayPaygQuota(relayInfo, userDelta)
+				} else if relayInfo.QuotaBucket == model.UserQuotaBucketPayToken {
+					rollbackErr = returnRelayPayTokenQuota(relayInfo, userDelta)
 				} else if relayInfo.QuotaBucket == model.UserQuotaBucketSubscription || relayInfo.QuotaBucket == model.UserQuotaBucketTokens {
 					rollbackErr = returnRelaySubscriptionQuota(relayInfo, userDelta)
 				} else if relayInfo.QuotaBucket != "" {
@@ -1265,7 +1372,7 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, userQuotaDelta int, toke
 						userDelta,
 						relayInfo.QuotaBucket,
 						relayInfo.UsingGroupId,
-						getBucketProductID(),
+						0,
 					)
 				} else {
 					rollbackErr = model.ReturnUserQuota(relayInfo.UserId, userDelta)
@@ -1274,6 +1381,8 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, userQuotaDelta int, toke
 				rollbackQuota := -userDelta
 				if relayInfo.QuotaBucket == model.UserQuotaBucketPayg {
 					rollbackErr = consumeRelayPaygQuota(relayInfo, rollbackQuota)
+				} else if relayInfo.QuotaBucket == model.UserQuotaBucketPayToken {
+					rollbackErr = consumeRelayPayTokenQuota(relayInfo, rollbackQuota)
 				} else if relayInfo.QuotaBucket == model.UserQuotaBucketSubscription || relayInfo.QuotaBucket == model.UserQuotaBucketTokens {
 					rollbackErr = consumeRelaySubscriptionQuota(relayInfo, rollbackQuota)
 				} else if relayInfo.QuotaBucket != "" {
@@ -1282,7 +1391,7 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, userQuotaDelta int, toke
 						rollbackQuota,
 						relayInfo.QuotaBucket,
 						relayInfo.UsingGroupId,
-						getBucketProductID(),
+						0,
 					)
 				} else {
 					rollbackErr = model.DecreaseUserQuota(relayInfo.UserId, rollbackQuota)

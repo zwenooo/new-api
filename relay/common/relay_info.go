@@ -208,59 +208,61 @@ type ChannelMeta struct {
 }
 
 type RelayInfo struct {
-	TokenId                 int
-	TokenKey                string
-	UserId                  int
-	UsingGroupId            int                          // 使用的分组
-	QuotaBucket             string                       // 计费桶：subscription / payg / free（由上层选择）
-	SubscriptionAllocations []SubscriptionUnitAllocation // 订阅额度/订阅tokens：本次请求实际扣费的订阅分配（用于精确回滚/结算）
-	PaygProductId           int                          // 按量付费：首个实际扣费的商品ID（兼容旧快照/日志）
-	PaygProductAllocations  []ProductQuotaAllocation     // 按量付费：本次请求实际扣费的商品分配（用于精确回滚/结算）
-	PayTokenProductId       int                          // 按token付费：实际扣费的商品ID（用于按商品分桶扣费与回滚）
-	UserGroupId             int                          // 用户 audience/user-group
-	TokenUnlimited          bool
-	StartTime               time.Time
-	FirstResponseTime       time.Time
-	isFirstResponse         bool
+	TokenId                    int
+	TokenKey                   string
+	UserId                     int
+	UsingGroupId               int                          // 使用的分组
+	QuotaBucket                string                       // 计费桶：subscription / payg / free（由上层选择）
+	SubscriptionAllocations    []SubscriptionUnitAllocation // 订阅额度/订阅tokens：本次请求实际扣费的订阅分配（用于精确回滚/结算）
+	PaygProductId              int                          // 按量付费：首个实际扣费的商品ID（兼容旧快照/日志）
+	PaygProductAllocations     []ProductQuotaAllocation     // 按量付费：本次请求实际扣费的商品分配（用于精确回滚/结算）
+	PayTokenProductId          int                          // 按token付费：首个实际扣费的商品ID（兼容旧快照/日志）
+	PayTokenProductAllocations []ProductQuotaAllocation     // 按token付费：本次请求实际扣费的商品分配（用于精确回滚/结算）
+	UserGroupId                int                          // 用户 audience/user-group
+	TokenUnlimited             bool
+	StartTime                  time.Time
+	FirstResponseTime          time.Time
+	isFirstResponse            bool
 	//SendLastReasoningResponse bool
-	IsStream                    bool
-	IsGeminiBatchEmbedding      bool
-	IsPlayground                bool
-	UsePrice                    bool
-	RelayMode                   int
-	OriginModelName             string
-	RequestURLPath              string
-	PromptTokens                int
-	ShouldIncludeUsage          bool
-	DisablePing                 bool // 是否禁止向下游发送自定义 Ping
-	ClientWs                    *websocket.Conn
-	TargetWs                    *websocket.Conn
-	InputAudioFormat            string
-	OutputAudioFormat           string
-	RealtimeTools               []dto.RealTimeTool
-	IsFirstRequest              bool
-	AudioUsage                  bool
-	ReasoningEffort             string
-	ServiceTier                 string
-	UserSetting                 dto.UserSetting
-	UserEmail                   string
-	UserQuota                   int
-	BaseMultiplier              float64
-	RelayFormat                 types.RelayFormat
-	SendResponseCount           int
-	FinalPreConsumedQuota       int   // 最终预消耗的配额
-	FinalPreConsumedTokens      int   // 最终预消耗的 tokens（tokens 计费桶）
-	FinalPreConsumedRequests    int   // 最终预消耗的次数（按请求次数订阅）
-	RequestSubscriptionId       int   // 按次订阅：实际预扣/扣费的订阅ID（用于失败返还）
-	FinalPreConsumedPayRequests int   // 最终预消耗的次数（按次付费）
-	PayRequestProductId         int   // 按次付费：实际扣费的商品ID（用于按商品分桶扣费与回滚）
-	LogId                       int   // 初始日志条目ID（用于流式请求实时显示和后续更新）
-	LogCreatedAt                int64 // 初始日志条目创建时间（Unix seconds，用于服务状态聚合）
-	ConversationId              string
-	SessionId                   string
-	PromptCacheKey              string
-	OaiCcUsage                  *oai_cc.UsageContext
-	IsClaudeBetaQuery           bool // /v1/messages?beta=true
+	IsStream                     bool
+	IsGeminiBatchEmbedding       bool
+	IsPlayground                 bool
+	UsePrice                     bool
+	RelayMode                    int
+	OriginModelName              string
+	RequestURLPath               string
+	PromptTokens                 int
+	ShouldIncludeUsage           bool
+	DisablePing                  bool // 是否禁止向下游发送自定义 Ping
+	ClientWs                     *websocket.Conn
+	TargetWs                     *websocket.Conn
+	InputAudioFormat             string
+	OutputAudioFormat            string
+	RealtimeTools                []dto.RealTimeTool
+	IsFirstRequest               bool
+	AudioUsage                   bool
+	ReasoningEffort              string
+	ServiceTier                  string
+	UserSetting                  dto.UserSetting
+	UserEmail                    string
+	UserQuota                    int
+	BaseMultiplier               float64
+	RelayFormat                  types.RelayFormat
+	SendResponseCount            int
+	FinalPreConsumedQuota        int                      // 最终预消耗的配额
+	FinalPreConsumedTokens       int                      // 最终预消耗的 tokens（tokens 计费桶）
+	FinalPreConsumedRequests     int                      // 最终预消耗的次数（按请求次数订阅）
+	RequestSubscriptionId        int                      // 按次订阅：实际预扣/扣费的订阅ID（用于失败返还）
+	FinalPreConsumedPayRequests  int                      // 最终预消耗的次数（按次付费）
+	PayRequestProductId          int                      // 按次付费：首个实际扣费的商品ID（兼容旧快照/日志）
+	PayRequestProductAllocations []ProductQuotaAllocation // 按次付费：本次请求实际扣费的商品分配（用于精确回滚/结算）
+	LogId                        int                      // 初始日志条目ID（用于流式请求实时显示和后续更新）
+	LogCreatedAt                 int64                    // 初始日志条目创建时间（Unix seconds，用于服务状态聚合）
+	ConversationId               string
+	SessionId                    string
+	PromptCacheKey               string
+	OaiCcUsage                   *oai_cc.UsageContext
+	IsClaudeBetaQuery            bool // /v1/messages?beta=true
 
 	PriceData types.PriceData
 

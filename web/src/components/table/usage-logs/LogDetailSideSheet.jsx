@@ -58,7 +58,9 @@ const LogDetailSideSheet = ({
 
   const expandItems = useMemo(() => {
     if (!record) return [];
-    return Array.isArray(expandData?.[record?.key]) ? expandData[record.key] : [];
+    return Array.isArray(expandData?.[record?.key])
+      ? expandData[record.key]
+      : [];
   }, [record, expandData]);
 
   const requestId = String(record?.request_id || '').trim();
@@ -75,14 +77,18 @@ const LogDetailSideSheet = ({
     const item = expandItems.find((i) => i?.key === channelInfoKey);
     if (!item) return '';
     const v = item.value;
-    return typeof v === 'string' || typeof v === 'number' ? String(v).trim() : '';
+    return typeof v === 'string' || typeof v === 'number'
+      ? String(v).trim()
+      : '';
   }, [expandItems, channelInfoKey]);
 
   const streamExitReasonText = useMemo(() => {
     const item = expandItems.find((i) => i?.key === 'stream_exit_reason');
     if (!item) return '';
     const v = item.value;
-    return typeof v === 'string' || typeof v === 'number' ? String(v).trim() : '';
+    return typeof v === 'string' || typeof v === 'number'
+      ? String(v).trim()
+      : '';
   }, [expandItems]);
 
   const detailsItems = useMemo(() => {
@@ -93,8 +99,17 @@ const LogDetailSideSheet = ({
       channelInfoKey,
       'stream_exit_reason',
     ]);
-    return expandItems.filter((item) => item && item.key && !excludeKeys.has(item.key));
+    return expandItems.filter(
+      (item) => item && item.key && !excludeKeys.has(item.key),
+    );
   }, [expandItems, interfaceKey, requestUAKey, channelInfoKey]);
+
+  const defaultDetailActiveKeys = useMemo(
+    () => detailsItems.map((_, idx) => String(idx)),
+    [detailsItems],
+  );
+  const detailDefaultActiveKey = isAdminUser ? '0' : defaultDetailActiveKeys;
+  const detailCollapseKey = `${record?.key || requestId || 'log-detail'}-${visible ? 'open' : 'closed'}`;
 
   const copyDetails = async (e) => {
     if (e?.stopPropagation) e.stopPropagation();
@@ -107,16 +122,14 @@ const LogDetailSideSheet = ({
     }
   };
 
-  if (!record) return null;
-
   const title = (
     <div className='flex items-center gap-2 min-w-0'>
       <Typography.Text strong className='truncate'>
-        {record.model_name || t('日志详情')}
+        {record?.model_name || t('日志详情')}
       </Typography.Text>
-      {record.type !== undefined && (
+      {record?.type !== undefined && (
         <Tag size='small' color='blue' shape='circle'>
-          {record.timestamp2string}
+          {record?.timestamp2string}
         </Tag>
       )}
     </div>
@@ -126,17 +139,10 @@ const LogDetailSideSheet = ({
     <SideSheet
       placement='right'
       title={title}
-      visible={visible}
+      visible={visible && Boolean(record)}
       width={isMobile ? '100%' : 720}
       onCancel={onClose}
-      closeIcon={
-        <Button
-          className='semi-button-tertiary semi-button-size-small semi-button-borderless'
-          type='button'
-          icon={<IconClose />}
-          onClick={onClose}
-        />
-      }
+      closeIcon={<IconClose />}
       bodyStyle={{
         padding: 0,
         display: 'flex',
@@ -177,11 +183,15 @@ const LogDetailSideSheet = ({
               value={requestUA}
               onCopy={requestUA ? (e) => copyText(e, requestUA) : null}
             />
-            <SummaryRow
-              label={channelInfoKey}
-              value={channelInfoText}
-              onCopy={channelInfoText ? (e) => copyText(e, channelInfoText) : null}
-            />
+            {isAdminUser ? (
+              <SummaryRow
+                label={channelInfoKey}
+                value={channelInfoText}
+                onCopy={
+                  channelInfoText ? (e) => copyText(e, channelInfoText) : null
+                }
+              />
+            ) : null}
             {streamExitReasonText ? (
               <SummaryRow
                 label='stream_exit_reason'
@@ -195,7 +205,11 @@ const LogDetailSideSheet = ({
         {/* Detail items */}
         {detailsItems.length > 0 && (
           <div className='log-detail-section'>
-            <Collapse accordion defaultActiveKey='0'>
+            <Collapse
+              key={detailCollapseKey}
+              accordion={isAdminUser}
+              defaultActiveKey={detailDefaultActiveKey}
+            >
               {detailsItems.map((item, idx) => (
                 <Collapse.Panel
                   header={
@@ -227,4 +241,3 @@ const LogDetailSideSheet = ({
 };
 
 export default LogDetailSideSheet;
-

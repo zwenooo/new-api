@@ -33,6 +33,7 @@ import {
   renderQuota,
   stringToColor,
   getLogOther,
+  getUsageLogTokenDisplay,
   renderModelTag,
   renderClaudeLogContent,
   renderLogContent,
@@ -254,7 +255,7 @@ function renderModelName(record, copyText, t) {
   if (!modelMapped) {
     return renderModelTag(modelName, {
       onClick: (event) => {
-        copyText(event, record.model_name).then((r) => { });
+        copyText(event, record.model_name).then((r) => {});
       },
     });
   } else {
@@ -271,7 +272,7 @@ function renderModelName(record, copyText, t) {
                     </Typography.Text>
                     {renderModelTag(modelName, {
                       onClick: (event) => {
-                        copyText(event, record.model_name).then((r) => { });
+                        copyText(event, record.model_name).then((r) => {});
                       },
                     })}
                   </div>
@@ -282,7 +283,7 @@ function renderModelName(record, copyText, t) {
                     {renderModelTag(other.upstream_model_name, {
                       onClick: (event) => {
                         copyText(event, other.upstream_model_name).then(
-                          (r) => { },
+                          (r) => {},
                         );
                       },
                     })}
@@ -293,7 +294,7 @@ function renderModelName(record, copyText, t) {
           >
             {renderModelTag(modelName, {
               onClick: (event) => {
-                copyText(event, record.model_name).then((r) => { });
+                copyText(event, record.model_name).then((r) => {});
               },
               suffixIcon: (
                 <Route
@@ -504,18 +505,21 @@ export const getLogsColumns = ({
       key: COLUMN_KEYS.TOKEN,
       title: t('令牌'),
       dataIndex: 'token_name',
-      render: (text, record, index) => {
+      render: (text, record) => {
+        const display = getUsageLogTokenDisplay(record, t);
+        if (!display) {
+          return <></>;
+        }
         return record.type === 0 || record.type === 2 || record.type === 5 ? (
           <div>
             <Tag
               color='grey'
               shape='circle'
               onClick={(event) => {
-                copyText(event, text);
+                copyText(event, display);
               }}
             >
-              {' '}
-              {t(text)}{' '}
+              {display}
             </Tag>
           </div>
         ) : (
@@ -762,16 +766,20 @@ export const getUserLogsColumns = ({ t, copyText, groupLabelById }) => {
       key: 'token',
       title: t('令牌'),
       dataIndex: 'token_name',
-      render: (text) => {
+      render: (text, record) => {
+        const display = getUsageLogTokenDisplay(record, t);
+        if (!display) {
+          return <></>;
+        }
         return (
           <Tag
             color='grey'
             shape='circle'
             onClick={(event) => {
-              copyText(event, text);
+              copyText(event, display);
             }}
           >
-            {t(text)}
+            {display}
           </Tag>
         );
       },
@@ -794,9 +802,29 @@ export const getUserLogsColumns = ({ t, copyText, groupLabelById }) => {
     },
     {
       key: 'use_time',
-      title: t('用时'),
+      title: t('用时/首字'),
       dataIndex: 'use_time',
-      render: (text) => <>{renderUseTime(text, t)}</>,
+      render: (text, record) => {
+        if (!(record.type === 2 || record.type === 5)) {
+          return <></>;
+        }
+        if (record.is_stream) {
+          const other = getLogOther(record.other);
+          return (
+            <Space>
+              {renderUseTime(text, t)}
+              {renderFirstUseTime(other?.frt, t)}
+              {renderIsStream(record.is_stream, t)}
+            </Space>
+          );
+        }
+        return (
+          <Space>
+            {renderUseTime(text, t)}
+            {renderIsStream(record.is_stream, t)}
+          </Space>
+        );
+      },
     },
     {
       key: 'prompt_tokens',

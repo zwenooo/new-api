@@ -17,80 +17,65 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { API, showError } from '../../helpers';
+import { useState, useEffect } from 'react';
 
-const NOTICE_READ_KEY = 'notice_read_key';
-
-const hashString = (value) => {
-  let hash = 0;
-  for (let i = 0; i < value.length; i++) {
-    hash = (hash << 5) - hash + value.charCodeAt(i);
-    hash |= 0;
-  }
-  return (hash >>> 0).toString(16);
-};
-
-export const useNotifications = () => {
+export const useNotifications = (statusState) => {
   const [noticeVisible, setNoticeVisible] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [noticeMarkdown, setNoticeMarkdown] = useState('');
-  const [noticeLoading, setNoticeLoading] = useState(false);
 
-  const noticeKey = useMemo(() => {
-    const trimmed = (noticeMarkdown || '').trim();
-    if (!trimmed) return '';
-    return `notice:${hashString(trimmed)}`;
-  }, [noticeMarkdown]);
+  const announcements = statusState?.status?.announcements || [];
 
-  const updateUnreadCount = useCallback((key) => {
-    if (!key) {
-      setUnreadCount(0);
-      return;
+  const getAnnouncementKey = (a) =>
+    `${a?.publishDate || ''}-${(a?.content || '').slice(0, 30)}`;
+
+  const calculateUnreadCount = () => {
+    if (!announcements.length) return 0;
+    let readKeys = [];
+    try {
+      readKeys = JSON.parse(localStorage.getItem('notice_read_keys')) || [];
+    } catch (_) {
+      readKeys = [];
     }
-    const readKey = localStorage.getItem(NOTICE_READ_KEY) || '';
-    setUnreadCount(readKey === key ? 0 : 1);
-  }, []);
+    const readSet = new Set(readKeys);
+    return announcements.filter((a) => !readSet.has(getAnnouncementKey(a)))
+      .length;
+  };
 
-  const refreshNotice = useCallback(
-    async ({ silent = false } = {}) => {
-      setNoticeLoading(true);
-      try {
-        const res = await API.get('/api/notice', { skipErrorHandler: true });
-        const { success, message, data } = res.data || {};
-        if (success && typeof data === 'string') {
-          setNoticeMarkdown(data);
-        } else {
-          setNoticeMarkdown('');
-          if (!silent) showError(message || '获取公告失败');
-        }
-      } catch (error) {
-        setNoticeMarkdown('');
-        if (!silent) showError(error?.message || error);
-      } finally {
-        setNoticeLoading(false);
-      }
-    },
-    [setNoticeLoading],
-  );
+  const getUnreadKeys = () => {
+    if (!announcements.length) return [];
+    let readKeys = [];
+    try {
+      readKeys = JSON.parse(localStorage.getItem('notice_read_keys')) || [];
+    } catch (_) {
+      readKeys = [];
+    }
+    const readSet = new Set(readKeys);
+    return announcements
+      .filter((a) => !readSet.has(getAnnouncementKey(a)))
+      .map(getAnnouncementKey);
+  };
 
   useEffect(() => {
-    refreshNotice({ silent: true }).catch(() => null);
-  }, [refreshNotice]);
-
-  useEffect(() => {
-    updateUnreadCount(noticeKey);
-  }, [noticeKey, updateUnreadCount]);
+    setUnreadCount(calculateUnreadCount());
+  }, [announcements]);
 
   const handleNoticeOpen = () => {
     setNoticeVisible(true);
-    refreshNotice({ silent: false }).catch(() => null);
   };
 
   const handleNoticeClose = () => {
     setNoticeVisible(false);
-    if (noticeKey) {
-      localStorage.setItem(NOTICE_READ_KEY, noticeKey);
+    if (announcements.length) {
+      let readKeys = [];
+      try {
+        readKeys = JSON.parse(localStorage.getItem('notice_read_keys')) || [];
+      } catch (_) {
+        readKeys = [];
+      }
+      const mergedKeys = Array.from(
+        new Set([...readKeys, ...announcements.map(getAnnouncementKey)]),
+      );
+      localStorage.setItem('notice_read_keys', JSON.stringify(mergedKeys));
     }
     setUnreadCount(0);
   };
@@ -98,9 +83,9 @@ export const useNotifications = () => {
   return {
     noticeVisible,
     unreadCount,
-    noticeMarkdown,
-    noticeLoading,
+    announcements,
     handleNoticeOpen,
     handleNoticeClose,
+    getUnreadKeys,
   };
 };

@@ -1561,7 +1561,7 @@ const ClawBoxSetting = () => {
                             type='password'
                             value={portableGitHubToken}
                             onChange={setPortableGitHubToken}
-                            placeholder='ghp_xxx / github_pat_xxx'
+                            placeholder='github_pat_xxx'
                           />
                         </div>
                         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>

@@ -28,9 +28,12 @@ const ChartsPanel = ({
   spec_model_line,
   spec_pie,
   spec_rank_bar,
+  spec_cache_hit_rate,
+  spec_token_quota_bar,
   CHART_CONFIG,
   hasApiInfoPanel,
   filterConfig,
+  showTokenQuotaChart,
   t,
 }) => {
   const tabOptions = [
@@ -38,7 +41,9 @@ const ChartsPanel = ({
     { value: '2', label: t('消耗趋势') },
     { value: '3', label: t('调用次数分布') },
     { value: '4', label: t('调用次数排行') },
-  ];
+    { value: '5', label: t('缓存命中率') },
+    showTokenQuotaChart ? { value: '6', label: t('令牌消耗统计') } : null,
+  ].filter(Boolean);
 
   return (
     <section
@@ -49,13 +54,23 @@ const ChartsPanel = ({
           {t('使用统计')}
         </h3>
         <div className='dashboard-chart-toolbar mt-4 flex flex-wrap items-center gap-2'>
-          <Select
-            size='small'
-            value={activeChartTab}
-            optionList={tabOptions}
-            onChange={setActiveChartTab}
-            className='w-full md:w-[160px]'
-          />
+          <div className='flex w-full flex-wrap items-center gap-1 rounded-xl border border-[var(--semi-color-border)] bg-[var(--semi-color-bg-1)] p-1 md:w-auto'>
+            {tabOptions.map((option) => {
+              const active = activeChartTab === option.value;
+              return (
+                <Button
+                  key={option.value}
+                  size='small'
+                  type={active ? 'primary' : 'tertiary'}
+                  theme={active ? 'solid' : 'borderless'}
+                  onClick={() => setActiveChartTab(option.value)}
+                  className='!rounded-lg'
+                >
+                  {option.label}
+                </Button>
+              );
+            })}
+          </div>
 
           {filterConfig ? (
             <div className='flex w-full flex-wrap items-center gap-2 pt-2 md:ml-auto md:w-auto md:pt-0'>
@@ -84,7 +99,10 @@ const ChartsPanel = ({
                 value={filterConfig.dataExportDefaultTime}
                 optionList={filterConfig.timeOptions}
                 onChange={(val) =>
-                  filterConfig.handleInputChange(val, 'data_export_default_time')
+                  filterConfig.handleInputChange(
+                    val,
+                    'data_export_default_time',
+                  )
                 }
                 placeholder={t('时间粒度')}
                 className='w-full md:w-[120px]'
@@ -117,6 +135,12 @@ const ChartsPanel = ({
             )}
             {activeChartTab === '4' && (
               <VChart spec={spec_rank_bar} option={CHART_CONFIG} />
+            )}
+            {activeChartTab === '5' && (
+              <VChart spec={spec_cache_hit_rate} option={CHART_CONFIG} />
+            )}
+            {showTokenQuotaChart && activeChartTab === '6' && (
+              <VChart spec={spec_token_quota_bar} option={CHART_CONFIG} />
             )}
           </div>
         </div>

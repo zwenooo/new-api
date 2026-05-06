@@ -197,6 +197,8 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticSwitchKeywords"] = operation_setting.AutomaticSwitchKeywordsToString()
 	common.OptionMap["AutomaticSwitchStatusCodeWhitelist"] = operation_setting.AutomaticSwitchStatusCodeWhitelistToString()
 	common.OptionMap["AutomaticSwitchMaxRetries"] = strconv.Itoa(operation_setting.AutomaticSwitchMaxRetries)
+	common.OptionMap["ResponsesCapacityRetryEnabled"] = strconv.FormatBool(operation_setting.ResponsesCapacityRetryEnabled)
+	common.OptionMap["ResponsesCapacityRetryKeywords"] = operation_setting.ResponsesCapacityRetryKeywordsToString()
 	common.OptionMap["ExposeRatioEnabled"] = strconv.FormatBool(ratio_setting.IsExposeRatioEnabled())
 
 	// 自动添加所有注册的模型配置
@@ -619,6 +621,8 @@ func updateOptionMap(key string, value string) (err error) {
 			operation_setting.SelfUseModeEnabled = boolValue
 		case "ChatCompletionsEnabled":
 			operation_setting.ChatCompletionsEnabled = boolValue
+		case "ResponsesCapacityRetryEnabled":
+			operation_setting.ResponsesCapacityRetryEnabled = boolValue
 		case "CheckSensitiveOnPromptEnabled":
 			setting.CheckSensitiveOnPromptEnabled = boolValue
 		case "ModelRequestConcurrencyLimitEnabled":
@@ -879,6 +883,8 @@ func updateOptionMap(key string, value string) (err error) {
 			break
 		}
 		operation_setting.AutomaticSwitchMaxRetries = retryTimes
+	case "ResponsesCapacityRetryKeywords":
+		operation_setting.ResponsesCapacityRetryKeywordsFromString(value)
 	case "StreamCacheQueueLength":
 		setting.StreamCacheQueueLength, _ = strconv.Atoi(value)
 	case "PayMethods":
@@ -906,6 +912,11 @@ func validateOptionValue(key string, value string) error {
 			return errors.New("AutomaticSwitchMaxRetries 必须为整数")
 		}
 		return operation_setting.ValidateAutomaticSwitchMaxRetries(retryTimes)
+	case "ResponsesCapacityRetryEnabled":
+		if _, err := strconv.ParseBool(value); err != nil {
+			return errors.New("ResponsesCapacityRetryEnabled 必须为布尔值")
+		}
+		return nil
 	default:
 		return nil
 	}

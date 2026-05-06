@@ -42,7 +42,7 @@ type responsesWSSession struct {
 	current  *responsesWSRound
 }
 
-func cloneResponsesWSPaygAllocations(allocations []relaycommon.ProductQuotaAllocation) []relaycommon.ProductQuotaAllocation {
+func cloneResponsesWSProductAllocations(allocations []relaycommon.ProductQuotaAllocation) []relaycommon.ProductQuotaAllocation {
 	if len(allocations) == 0 {
 		return nil
 	}
@@ -456,8 +456,10 @@ func prepareResponsesWSRoundInfo(
 		roundInfo.RequestSubscriptionId = baseInfo.RequestSubscriptionId
 		roundInfo.FinalPreConsumedPayRequests = baseInfo.FinalPreConsumedPayRequests
 		roundInfo.PayRequestProductId = baseInfo.PayRequestProductId
+		roundInfo.PayRequestProductAllocations = cloneResponsesWSProductAllocations(baseInfo.PayRequestProductAllocations)
 		roundInfo.SubscriptionAllocations = cloneSubscriptionAllocations(baseInfo.SubscriptionAllocations)
-		roundInfo.PaygProductAllocations = cloneResponsesWSPaygAllocations(baseInfo.PaygProductAllocations)
+		roundInfo.PaygProductAllocations = cloneResponsesWSProductAllocations(baseInfo.PaygProductAllocations)
+		roundInfo.PayTokenProductAllocations = cloneResponsesWSProductAllocations(baseInfo.PayTokenProductAllocations)
 	} else {
 		if apiErr := service.PreConsumeQuota(c, roundInfo.PriceData.ShouldPreConsumedQuota, roundInfo); apiErr != nil {
 			return nil, apiErr
@@ -482,10 +484,12 @@ func cloneResponsesWSRoundInfo(baseInfo *relaycommon.RelayInfo) *relaycommon.Rel
 	clone.RequestSubscriptionId = 0
 	clone.FinalPreConsumedPayRequests = 0
 	clone.PayRequestProductId = 0
+	clone.PayRequestProductAllocations = nil
 	clone.SubscriptionAllocations = nil
 	clone.PaygProductId = baseInfo.PaygProductId
 	clone.PaygProductAllocations = nil
 	clone.PayTokenProductId = baseInfo.PayTokenProductId
+	clone.PayTokenProductAllocations = nil
 	clone.ResponsesUsageInfo = nil
 	return &clone
 }
@@ -540,8 +544,10 @@ func clearResponsesWSRoundBilling(info *relaycommon.RelayInfo) {
 	info.RequestSubscriptionId = 0
 	info.FinalPreConsumedPayRequests = 0
 	info.PayRequestProductId = 0
+	info.PayRequestProductAllocations = nil
 	info.SubscriptionAllocations = nil
 	info.PaygProductAllocations = nil
+	info.PayTokenProductAllocations = nil
 }
 
 func ensureResponsesWSRoundInitialConsumeLog(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {

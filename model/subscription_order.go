@@ -75,8 +75,8 @@ func (o *SubscriptionOrder) Insert(tx *gorm.DB) error {
 	if o.Quantity <= 0 {
 		return errors.New("quantity 无效")
 	}
-	if o.AmountFen <= 0 {
-		return errors.New("amount_fen 必须大于0")
+	if o.AmountFen < 0 {
+		return errors.New("amount_fen 不能小于0")
 	}
 	if o.Status == "" {
 		return errors.New("status 不能为空")

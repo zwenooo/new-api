@@ -417,53 +417,16 @@ const StompKing = () => {
                     }
                   }
                   .stomp-king-podium .gold-glow {
-                    box-shadow: 0 0 50px rgba(234, 179, 8, 0.35);
+                    box-shadow: none;
                   }
                   .stomp-king-podium .silver-glow {
-                    box-shadow: 0 0 30px rgba(148, 163, 184, 0.3);
+                    box-shadow: none;
                   }
                   .stomp-king-podium .bronze-glow {
-                    box-shadow: 0 0 30px rgba(180, 83, 9, 0.2);
+                    box-shadow: none;
                   }
                   .stomp-king-podium .podium-user-slot:hover .float-anim {
                     animation-play-state: paused;
-                  }
-                  .stomp-king-podium .first-place-showcase {
-                    position: absolute;
-                    inset: auto 0 0;
-                    height: 100%;
-                    overflow: visible;
-                    pointer-events: none;
-                  }
-                  .stomp-king-podium .champion-aura {
-                    position: absolute;
-                    left: 50%;
-                    bottom: -10px;
-                    width: 150px;
-                    height: 74px;
-                    border-radius: 9999px;
-                    transform: translateX(-50%);
-                    background:
-                      radial-gradient(circle at 50% 58%, rgba(255, 245, 157, 0.45) 0%, rgba(250, 204, 21, 0.28) 28%, rgba(250, 204, 21, 0.06) 58%, rgba(250, 204, 21, 0) 100%);
-                    filter: blur(8px);
-                    animation: champion-aura 3.8s ease-in-out infinite;
-                  }
-                  @keyframes champion-aura {
-                    0%,
-                    100% {
-                      opacity: 0.6;
-                      transform: translateX(-50%) scale(0.96);
-                    }
-                    50% {
-                      opacity: 1;
-                      transform: translateX(-50%) scale(1.08);
-                    }
-                  }
-                  @media (prefers-reduced-motion: reduce) {
-                    .stomp-king-podium .champion-aura {
-                      animation: none;
-                      opacity: 0;
-                    }
                   }
               `}</style>
               <div className='flex items-end justify-center w-full max-w-5xl mx-auto mb-3 px-4 gap-2 md:gap-4'>
@@ -493,7 +456,7 @@ const StompKing = () => {
                         {renderMetricValue(podiumItems[1])}
                       </div>
                     </div>
-                    <div className='w-full h-12 md:h-16 bg-gradient-to-b from-slate-400 to-slate-700 rounded-t-xl shadow-[0_-6px_12px_rgba(148,163,184,0.28)] flex flex-col items-center pt-2 border-t border-x border-slate-300/20'>
+                    <div className='w-full h-12 md:h-16 bg-slate-500 dark:bg-slate-700 rounded-t-xl flex flex-col items-center pt-2 border-t border-x border-slate-300/20'>
                       <span className='text-2xl md:text-3xl font-black text-slate-100/70 dark:text-white/10 select-none'>
                         2
                       </span>
@@ -504,7 +467,7 @@ const StompKing = () => {
                 {podiumItems[0] && (
                   <div className='podium-user-slot flex flex-col items-center w-1/3 max-w-[200px] relative'>
                     <div className='float-anim mb-2 text-center'>
-                      <div className='mb-2 font-bold text-amber-700 dark:text-yellow-100 text-xs md:text-sm drop-shadow-[0_1px_0_rgba(255,255,255,0.4)] dark:drop-shadow-md'>
+                      <div className='mb-2 font-bold text-amber-700 dark:text-yellow-100 text-xs md:text-sm'>
                         {podiumItems[0].username}
                       </div>
                       <div className='relative inline-block group'>
@@ -527,11 +490,7 @@ const StompKing = () => {
                         {renderMetricValue(podiumItems[0])}
                       </div>
                     </div>
-                    <div className='w-full h-18 md:h-24 bg-gradient-to-b from-yellow-500 to-yellow-900 rounded-t-xl shadow-[0_-8px_18px_rgba(234,179,8,0.3)] flex flex-col items-center pt-3 border-t border-x border-yellow-300/30 relative'>
-                      <div className='absolute top-0 left-0 w-full h-1 bg-yellow-300/20'></div>
-                      <div className='first-place-showcase' aria-hidden='true'>
-                        <span className='champion-aura' />
-                      </div>
+                    <div className='w-full h-18 md:h-24 bg-amber-500 dark:bg-amber-700 rounded-t-xl flex flex-col items-center pt-3 border-t border-x border-yellow-300/30 relative'>
                       <span className='text-4xl md:text-5xl font-black text-amber-50/70 dark:text-white/10 select-none'>
                         1
                       </span>
@@ -565,7 +524,7 @@ const StompKing = () => {
                         {renderMetricValue(podiumItems[2])}
                       </div>
                     </div>
-                    <div className='w-full h-10 md:h-14 bg-gradient-to-b from-amber-700 to-amber-950 rounded-t-xl shadow-[0_-6px_12px_rgba(180,83,9,0.24)] flex flex-col items-center pt-1.5 border-t border-x border-amber-600/20'>
+                    <div className='w-full h-10 md:h-14 bg-amber-700 dark:bg-amber-900 rounded-t-xl flex flex-col items-center pt-1.5 border-t border-x border-amber-600/20'>
                       <span className='text-xl md:text-2xl font-black text-amber-50/65 dark:text-white/5 select-none'>
                         3
                       </span>

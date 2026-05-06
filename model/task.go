@@ -81,31 +81,33 @@ func (m Properties) Value() (driver.Value, error) {
 }
 
 type TaskPrivateData struct {
-	Key                      string                                   `json:"key,omitempty"`
-	TokenKey                 string                                   `json:"token_key,omitempty"`
-	UpstreamTaskID           string                                   `json:"upstream_task_id,omitempty"`
-	SubmitDispatchTime       int64                                    `json:"submit_dispatch_time,omitempty"`
-	ResultURL                string                                   `json:"result_url,omitempty"`
-	BillingSource            string                                   `json:"billing_source,omitempty"`
-	SubscriptionID           int                                      `json:"subscription_id,omitempty"`
-	QuotaBucket              string                                   `json:"quota_bucket,omitempty"`
-	UsingGroupID             int                                      `json:"using_group_id,omitempty"`
-	UserGroupID              int                                      `json:"user_group_id,omitempty"`
-	TokenID                  int                                      `json:"token_id,omitempty"`
-	SubscriptionAllocations  []commonRelay.SubscriptionUnitAllocation `json:"subscription_allocations,omitempty"`
-	PaygProductID            int                                      `json:"payg_product_id,omitempty"`
-	PaygProductAllocations   []commonRelay.ProductQuotaAllocation     `json:"payg_product_allocations,omitempty"`
-	PayTokenProductID        int                                      `json:"pay_token_product_id,omitempty"`
-	RequestSubscriptionID    int                                      `json:"request_subscription_id,omitempty"`
-	PayRequestProductID      int                                      `json:"pay_request_product_id,omitempty"`
-	FinalPreConsumedQuota    int                                      `json:"final_pre_consumed_quota,omitempty"`
-	FinalVisibleQuota        int                                      `json:"final_visible_quota,omitempty"`
-	FinalCostQuota           int                                      `json:"final_cost_quota,omitempty"`
-	FinalPreConsumedTokens   int                                      `json:"final_pre_consumed_tokens,omitempty"`
-	FinalPreConsumedRequests int                                      `json:"final_pre_consumed_requests,omitempty"`
-	FinalPreConsumedPayReqs  int                                      `json:"final_pre_consumed_pay_requests,omitempty"`
-	RefundAppliedAt          int64                                    `json:"refund_applied_at,omitempty"`
-	BillingContext           *TaskBillingContext                      `json:"billing_context,omitempty"`
+	Key                          string                                   `json:"key,omitempty"`
+	TokenKey                     string                                   `json:"token_key,omitempty"`
+	UpstreamTaskID               string                                   `json:"upstream_task_id,omitempty"`
+	SubmitDispatchTime           int64                                    `json:"submit_dispatch_time,omitempty"`
+	ResultURL                    string                                   `json:"result_url,omitempty"`
+	BillingSource                string                                   `json:"billing_source,omitempty"`
+	SubscriptionID               int                                      `json:"subscription_id,omitempty"`
+	QuotaBucket                  string                                   `json:"quota_bucket,omitempty"`
+	UsingGroupID                 int                                      `json:"using_group_id,omitempty"`
+	UserGroupID                  int                                      `json:"user_group_id,omitempty"`
+	TokenID                      int                                      `json:"token_id,omitempty"`
+	SubscriptionAllocations      []commonRelay.SubscriptionUnitAllocation `json:"subscription_allocations,omitempty"`
+	PaygProductID                int                                      `json:"payg_product_id,omitempty"`
+	PaygProductAllocations       []commonRelay.ProductQuotaAllocation     `json:"payg_product_allocations,omitempty"`
+	PayTokenProductID            int                                      `json:"pay_token_product_id,omitempty"`
+	PayTokenProductAllocations   []commonRelay.ProductQuotaAllocation     `json:"pay_token_product_allocations,omitempty"`
+	RequestSubscriptionID        int                                      `json:"request_subscription_id,omitempty"`
+	PayRequestProductID          int                                      `json:"pay_request_product_id,omitempty"`
+	PayRequestProductAllocations []commonRelay.ProductQuotaAllocation     `json:"pay_request_product_allocations,omitempty"`
+	FinalPreConsumedQuota        int                                      `json:"final_pre_consumed_quota,omitempty"`
+	FinalVisibleQuota            int                                      `json:"final_visible_quota,omitempty"`
+	FinalCostQuota               int                                      `json:"final_cost_quota,omitempty"`
+	FinalPreConsumedTokens       int                                      `json:"final_pre_consumed_tokens,omitempty"`
+	FinalPreConsumedRequests     int                                      `json:"final_pre_consumed_requests,omitempty"`
+	FinalPreConsumedPayReqs      int                                      `json:"final_pre_consumed_pay_requests,omitempty"`
+	RefundAppliedAt              int64                                    `json:"refund_applied_at,omitempty"`
+	BillingContext               *TaskBillingContext                      `json:"billing_context,omitempty"`
 }
 
 type TaskBillingContext struct {
@@ -224,8 +226,10 @@ func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) 
 	task.PrivateData.PaygProductID = relayInfo.PaygProductId
 	task.PrivateData.PaygProductAllocations = relayInfo.PaygProductAllocations
 	task.PrivateData.PayTokenProductID = relayInfo.PayTokenProductId
+	task.PrivateData.PayTokenProductAllocations = relayInfo.PayTokenProductAllocations
 	task.PrivateData.RequestSubscriptionID = relayInfo.RequestSubscriptionId
 	task.PrivateData.PayRequestProductID = relayInfo.PayRequestProductId
+	task.PrivateData.PayRequestProductAllocations = relayInfo.PayRequestProductAllocations
 	return task
 }
 

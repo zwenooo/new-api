@@ -23,6 +23,7 @@ import { copy, showSuccess } from './utils';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
 import { visit } from 'unist-util-visit';
 import * as LobeIcons from '@lobehub/icons';
+import RatioTag from '../components/common/ui/RatioTag';
 import {
   OpenAI,
   Claude,
@@ -701,19 +702,7 @@ export function renderGroup(group) {
 }
 
 export function renderRatio(ratio) {
-  let color = 'green';
-  if (ratio > 5) {
-    color = 'red';
-  } else if (ratio > 3) {
-    color = 'orange';
-  } else if (ratio > 1) {
-    color = 'blue';
-  }
-  return (
-    <Tag color={color}>
-      {ratio}x {i18next.t('倍率')}
-    </Tag>
-  );
+  return <RatioTag value={ratio} />;
 }
 
 const measureTextWidth = (

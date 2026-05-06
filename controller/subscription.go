@@ -255,8 +255,6 @@ func CreateSubscriptionOrder(c *gin.Context) {
 	effectiveEnabled := lockedPresetRevision.Enabled
 	effectivePriceFen := lockedPresetRevision.PriceFen
 	effectivePurchaseLimit := lockedPresetRevision.PurchaseLimit
-	effectiveMultiQuantityEnabled := lockedPresetRevision.MultiQuantityEnabled
-	effectiveMultiQuantityDeferOnly := lockedPresetRevision.MultiQuantityDeferOnly
 	effectiveQuota := lockedPresetRevision.Quota
 	effectiveDailyQuotaLimit := lockedPresetRevision.DailyQuotaLimit
 	effectiveDailyRequestLimit := lockedPresetRevision.DailyRequestLimit
@@ -270,8 +268,12 @@ func CreateSubscriptionOrder(c *gin.Context) {
 		common.ApiErrorMsg(c, "商品已下架")
 		return
 	}
-	if effectivePriceFen <= 0 {
-		common.ApiErrorMsg(c, "商品价格未配置")
+	if effectivePriceFen < 0 {
+		common.ApiErrorMsg(c, "商品价格配置错误")
+		return
+	}
+	if req.PayMethod == model.SubscriptionPayMethodEpay && effectivePriceFen == 0 {
+		common.ApiErrorMsg(c, "0 元商品请使用账户余额购买")
 		return
 	}
 	if preset.Stock != nil && *preset.Stock < quantity {
@@ -307,17 +309,9 @@ func CreateSubscriptionOrder(c *gin.Context) {
 		common.ApiErrorMsg(c, err.Error())
 		return
 	}
-	if quantity > 1 && effectiveMultiQuantityDeferOnly && req.ApplyMode != model.SubscriptionApplyModeDefer {
-		common.ApiErrorMsg(c, "仅支持顺延")
-		return
-	}
-	if quantity > 1 && !effectiveMultiQuantityEnabled {
-		common.ApiErrorMsg(c, "该商品不支持多数量购买")
-		return
-	}
 
 	totalAmountFen := effectivePriceFen * int64(quantity)
-	if totalAmountFen <= 0 {
+	if totalAmountFen < 0 {
 		common.ApiErrorMsg(c, "订单金额无效")
 		return
 	}
@@ -392,29 +386,28 @@ func CreateSubscriptionOrder(c *gin.Context) {
 				}
 			}
 
-			if buyer.BalanceFen < totalAmountFen {
-				return errors.New("余额不足")
-			}
 			balanceBeforeFen := buyer.BalanceFen
 			balanceAfterFen := balanceBeforeFen - totalAmountFen
 			if balanceAfterFen < 0 {
 				return errors.New("余额不足")
 			}
-			if err := tx.Model(&model.User{}).
-				Where("id = ?", userId).
-				Update("balance_fen", gorm.Expr("balance_fen - ?", totalAmountFen)).Error; err != nil {
-				return err
-			}
-			if err := model.CreateBalanceRecord(
-				tx,
-				userId,
-				model.BalanceRecordTypeSubscriptionPayOut,
-				-totalAmountFen,
-				balanceBeforeFen,
-				balanceAfterFen,
-				effectiveName,
-			); err != nil {
-				return err
+			if totalAmountFen > 0 {
+				if err := tx.Model(&model.User{}).
+					Where("id = ?", userId).
+					Update("balance_fen", gorm.Expr("balance_fen - ?", totalAmountFen)).Error; err != nil {
+					return err
+				}
+				if err := model.CreateBalanceRecord(
+					tx,
+					userId,
+					model.BalanceRecordTypeSubscriptionPayOut,
+					-totalAmountFen,
+					balanceBeforeFen,
+					balanceAfterFen,
+					effectiveName,
+				); err != nil {
+					return err
+				}
 			}
 			order := &model.SubscriptionOrder{
 				UserId:           userId,
@@ -762,8 +755,6 @@ func completeSubscriptionOrderTx(tx *gorm.DB, tradeNo string, paidAt int64, paid
 		effectiveDailyQuotaLimit := preset.DailyQuotaLimit
 		effectiveDailyRequestLimit := preset.DailyRequestLimit
 		effectiveQuotaValidDays := preset.QuotaValidDays
-		effectiveMultiQuantityEnabled := preset.MultiQuantityEnabled
-		effectiveMultiQuantityDeferOnly := preset.MultiQuantityDeferOnly
 		effectiveAllowedGroupIDs := []int{}
 		effectiveRevisionID := order.PresetRevisionId
 		if effectiveRevisionID > 0 {
@@ -776,8 +767,6 @@ func completeSubscriptionOrderTx(tx *gorm.DB, tradeNo string, paidAt int64, paid
 			effectiveDailyQuotaLimit = revision.DailyQuotaLimit
 			effectiveDailyRequestLimit = revision.DailyRequestLimit
 			effectiveQuotaValidDays = revision.QuotaValidDays
-			effectiveMultiQuantityEnabled = revision.MultiQuantityEnabled
-			effectiveMultiQuantityDeferOnly = revision.MultiQuantityDeferOnly
 			if len(revision.AllowedGroupIds) > 0 {
 				var ids []int
 				if err := common.Unmarshal([]byte(revision.AllowedGroupIds), &ids); err != nil {
@@ -800,8 +789,6 @@ func completeSubscriptionOrderTx(tx *gorm.DB, tradeNo string, paidAt int64, paid
 			effectiveDailyQuotaLimit = revision.DailyQuotaLimit
 			effectiveDailyRequestLimit = revision.DailyRequestLimit
 			effectiveQuotaValidDays = revision.QuotaValidDays
-			effectiveMultiQuantityEnabled = revision.MultiQuantityEnabled
-			effectiveMultiQuantityDeferOnly = revision.MultiQuantityDeferOnly
 			if len(revision.AllowedGroupIds) > 0 {
 				var ids []int
 				if err := common.Unmarshal([]byte(revision.AllowedGroupIds), &ids); err != nil {
@@ -816,12 +803,6 @@ func completeSubscriptionOrderTx(tx *gorm.DB, tradeNo string, paidAt int64, paid
 		}
 		if err := model.ConsumeRedemptionPresetStockTx(tx, preset.Id, order.Quantity); err != nil {
 			return err
-		}
-		if order.Quantity > 1 && effectiveMultiQuantityDeferOnly && order.ApplyMode != model.SubscriptionApplyModeDefer {
-			return errors.New("订单生效方式错误")
-		}
-		if order.Quantity > 1 && !effectiveMultiQuantityEnabled {
-			return errors.New("订单多数量购买参数错误")
 		}
 
 		if order.ApplyMode == model.SubscriptionApplyModeDefer {

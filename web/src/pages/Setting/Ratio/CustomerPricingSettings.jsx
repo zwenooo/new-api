@@ -38,6 +38,8 @@ import { useTranslation } from 'react-i18next';
 
 import { API, isRoot, showError, showSuccess } from '../../../helpers';
 import { PRICING_PROFILE_REQUEST_VERSION } from '../../../constants/common.constant';
+import RatioTag from '../../../components/common/ui/RatioTag';
+import GroupRatioPill from '../../../components/common/ui/GroupRatioPill';
 
 const { Text } = Typography;
 
@@ -65,12 +67,6 @@ const normalizeProfileGroupFactors = (rawFactors) => {
     });
   });
   return out.sort((a, b) => a.group_id - b.group_id);
-};
-
-const formatFactor = (value) => {
-  const factor = Number(value);
-  if (!Number.isFinite(factor)) return '1';
-  return factor.toFixed(6).replace(/\.?0+$/, '');
 };
 
 const getProfileInitValues = (profile) => ({
@@ -376,7 +372,7 @@ export default function CustomerPricingSettings() {
       title: t('默认倍率'),
       dataIndex: 'default_factor',
       key: 'default_factor',
-      render: (value) => formatFactor(value),
+      render: (value) => <RatioTag value={value} />,
     },
     {
       title: t('分组覆写'),
@@ -390,9 +386,11 @@ export default function CustomerPricingSettings() {
         return (
           <Space wrap>
             {factors.slice(0, 3).map((item) => (
-              <Tag key={`${item.group_id}-${item.factor}`} color='grey'>
-                {`${groupLabelById[item.group_id] || item.group_id} × ${formatFactor(item.factor)}`}
-              </Tag>
+              <GroupRatioPill
+                key={`${item.group_id}-${item.factor}`}
+                label={groupLabelById[item.group_id] || item.group_id}
+                ratio={item.factor}
+              />
             ))}
             {factors.length > 3 && (
               <Tag color='blue'>{`+${factors.length - 3}`}</Tag>
@@ -479,7 +477,7 @@ export default function CustomerPricingSettings() {
       title: t('基础倍率'),
       dataIndex: 'base_multiplier',
       key: 'base_multiplier',
-      render: (value) => formatFactor(value),
+      render: (value) => <RatioTag value={value} />,
     },
     {
       title: t('旧特殊倍率目标数'),

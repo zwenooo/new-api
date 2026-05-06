@@ -30,6 +30,7 @@ import {
   renderLimitedItems,
   renderDescription,
 } from '../../../../common/ui/RenderUtils';
+import RatioTag from '../../../../common/ui/RatioTag';
 import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
 
 function renderQuotaType(type, t) {
@@ -211,14 +212,24 @@ export const getPricingTableColumns = ({
       return (
         <div className='space-y-1'>
           <div className='text-gray-700'>
-            {t('模型倍率')}：{record.quota_type === 0 ? text : t('无')}
+            {t('模型倍率')}：
+            {record.quota_type === 0 ? <RatioTag value={text} /> : t('无')}
           </div>
           <div className='text-gray-700'>
             {t('补全倍率')}：
-            {record.quota_type === 0 ? completionRatio : t('无')}
+            {record.quota_type === 0 ? (
+              <RatioTag value={completionRatio} />
+            ) : (
+              t('无')
+            )}
           </div>
           <div className='text-gray-700'>
-            {t('分组倍率')}：{priceData?.usedGroupRatio ?? '-'}
+            {t('分组倍率')}：
+            {priceData?.usedGroupRatio ? (
+              <RatioTag value={priceData.usedGroupRatio} />
+            ) : (
+              '-'
+            )}
           </div>
         </div>
       );

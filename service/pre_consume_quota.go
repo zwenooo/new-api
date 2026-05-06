@@ -48,34 +48,38 @@ func returnPreConsumedQuotaContext(ctx context.Context, relayInfo *relaycommon.R
 	}
 	if relayInfo.FinalPreConsumedPayRequests != 0 {
 		logger.LogRequestInfo(ctx, fmt.Sprintf("用户 %d 请求失败, 返还预扣按次付费次数 %d", relayInfo.UserId, relayInfo.FinalPreConsumedPayRequests))
-		if err := model.ReturnUserPayRequestQuotaWithProduct(relayInfo.UserId, relayInfo.PayRequestProductId, relayInfo.FinalPreConsumedPayRequests); err != nil {
+		if err := returnRelayPayRequestQuota(relayInfo, relayInfo.FinalPreConsumedPayRequests); err != nil {
 			refundErr = errors.Join(refundErr, fmt.Errorf("返还预扣按次付费次数失败: %w", err))
 		} else {
 			relayInfo.FinalPreConsumedPayRequests = 0
 			relayInfo.PayRequestProductId = 0
+			relayInfo.PayRequestProductAllocations = nil
 		}
 	}
 	if relayInfo.FinalPreConsumedTokens != 0 {
 		logger.LogRequestInfo(ctx, fmt.Sprintf("用户 %d 请求失败, 返还预扣 tokens %d", relayInfo.UserId, relayInfo.FinalPreConsumedTokens))
 		bucket := relayInfo.QuotaBucket
-		productID := 0
+		var err error
 		if bucket == model.UserQuotaBucketPayToken {
-			productID = relayInfo.PayTokenProductId
+			err = returnRelayPayTokenQuota(relayInfo, relayInfo.FinalPreConsumedTokens)
+		} else {
+			err = model.ReturnUserQuotaByBucketWithAllocations(
+				relayInfo.UserId,
+				relayInfo.FinalPreConsumedTokens,
+				bucket,
+				relayInfo.UsingGroupId,
+				0,
+				relayInfo.SubscriptionAllocations,
+			)
 		}
-		if err := model.ReturnUserQuotaByBucketWithAllocations(
-			relayInfo.UserId,
-			relayInfo.FinalPreConsumedTokens,
-			bucket,
-			relayInfo.UsingGroupId,
-			productID,
-			relayInfo.SubscriptionAllocations,
-		); err != nil {
+		if err != nil {
 			refundErr = errors.Join(refundErr, fmt.Errorf("返还预扣 tokens 失败: %w", err))
 		} else {
 			relayInfo.FinalPreConsumedTokens = 0
 			relayInfo.SubscriptionAllocations = nil
 			if bucket == model.UserQuotaBucketPayToken {
 				relayInfo.PayTokenProductId = 0
+				relayInfo.PayTokenProductAllocations = nil
 			}
 		}
 	}
@@ -124,8 +128,10 @@ func syncReturnPreConsumedSnapshot(target *relaycommon.RelayInfo, source *relayc
 	target.PaygProductId = source.PaygProductId
 	target.PaygProductAllocations = cloneProductQuotaAllocations(source.PaygProductAllocations)
 	target.PayTokenProductId = source.PayTokenProductId
+	target.PayTokenProductAllocations = cloneProductQuotaAllocations(source.PayTokenProductAllocations)
 	target.RequestSubscriptionId = source.RequestSubscriptionId
 	target.PayRequestProductId = source.PayRequestProductId
+	target.PayRequestProductAllocations = cloneProductQuotaAllocations(source.PayRequestProductAllocations)
 	target.FinalPreConsumedQuota = source.FinalPreConsumedQuota
 	target.FinalPreConsumedTokens = source.FinalPreConsumedTokens
 	target.FinalPreConsumedRequests = source.FinalPreConsumedRequests
@@ -143,6 +149,7 @@ func MarkWssRequestRoundCommitted(relayInfo *relaycommon.RelayInfo) {
 	relayInfo.RequestSubscriptionId = 0
 	relayInfo.FinalPreConsumedPayRequests = 0
 	relayInfo.PayRequestProductId = 0
+	relayInfo.PayRequestProductAllocations = nil
 }
 
 // PreConsumeWssRequestRound ensures the current websocket response round has one
@@ -176,12 +183,11 @@ func PreConsumeWssRequestRound(relayInfo *relaycommon.RelayInfo) *types.NewAPIEr
 		if requestUnits <= 0 {
 			return nil
 		}
-		productId, err := model.PreConsumeUserPayRequestQuotaWithProduct(relayInfo.UserId, relayInfo.UsingGroupId, requestUnits)
+		err := consumeRelayPayRequestQuota(relayInfo, requestUnits)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		relayInfo.FinalPreConsumedPayRequests = requestUnits
-		relayInfo.PayRequestProductId = productId
 	}
 	return nil
 }
@@ -199,9 +205,10 @@ func ReturnWssRequestRoundReservation(c *gin.Context, relayInfo *relaycommon.Rel
 			return err
 		}
 	}
-	if relayInfo.FinalPreConsumedPayRequests != 0 && relayInfo.PayRequestProductId != 0 {
+	if relayInfo.FinalPreConsumedPayRequests != 0 &&
+		(relayInfo.PayRequestProductId != 0 || len(relayInfo.PayRequestProductAllocations) > 0) {
 		logger.LogRequestInfo(c, fmt.Sprintf("用户 %d websocket 单轮失败, 返还预扣按次付费次数 %d", relayInfo.UserId, relayInfo.FinalPreConsumedPayRequests))
-		if err := model.ReturnUserPayRequestQuotaWithProduct(relayInfo.UserId, relayInfo.PayRequestProductId, relayInfo.FinalPreConsumedPayRequests); err != nil {
+		if err := returnRelayPayRequestQuota(relayInfo, relayInfo.FinalPreConsumedPayRequests); err != nil {
 			return err
 		}
 	}
@@ -262,10 +269,9 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 	}
 	if relayInfo != nil && relayInfo.QuotaBucket == model.UserQuotaBucketPayRequest {
 		requestUnits := ComputeRequestBucketUsage(relayInfo, 1)
-		productId := 0
 		var err error
 		if requestUnits > 0 {
-			productId, err = model.PreConsumeUserPayRequestQuotaWithProduct(relayInfo.UserId, relayInfo.UsingGroupId, requestUnits)
+			err = consumeRelayPayRequestQuota(relayInfo, requestUnits)
 			if err != nil {
 				return types.NewErrorWithStatusCode(err, types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 			}
@@ -273,10 +279,9 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 		if preConsumedQuota > 0 {
 			if err := PreConsumeTokenQuota(relayInfo, preConsumedQuota); err != nil {
 				if requestUnits > 0 {
-					if rollErr := model.ReturnUserPayRequestQuotaWithProduct(relayInfo.UserId, productId, requestUnits); rollErr != nil {
+					if rollErr := returnRelayPayRequestQuota(relayInfo, requestUnits); rollErr != nil {
 						relayInfo.FinalPreConsumedQuota = preConsumedQuota
 						relayInfo.FinalPreConsumedPayRequests = requestUnits
-						relayInfo.PayRequestProductId = productId
 						err = combineBillingRollbackError(err, rollErr, "回滚预扣按次付费次数")
 					}
 				}
@@ -285,7 +290,6 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 		}
 		relayInfo.FinalPreConsumedQuota = preConsumedQuota
 		relayInfo.FinalPreConsumedPayRequests = requestUnits
-		relayInfo.PayRequestProductId = productId
 		return nil
 	}
 
@@ -331,15 +335,14 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 		relayInfo.FinalPreConsumedTokens = preConsumedTokens
 
 		if preConsumedTokens > 0 {
-			productID := 0
+			var err error
 			if bucket == model.UserQuotaBucketPayToken {
-				productID = relayInfo.PayTokenProductId
+				err = consumeRelayPayTokenQuota(relayInfo, preConsumedTokens)
+			} else {
+				var subscriptionAllocations []relaycommon.SubscriptionUnitAllocation
+				_, subscriptionAllocations, err = model.DecreaseUserQuotaByBucketWithAllocations(relayInfo.UserId, preConsumedTokens, bucket, relayInfo.UsingGroupId, 0)
+				setRelaySubscriptionAllocations(relayInfo, subscriptionAllocations)
 			}
-			selectedProductID, subscriptionAllocations, err := model.DecreaseUserQuotaByBucketWithAllocations(relayInfo.UserId, preConsumedTokens, bucket, relayInfo.UsingGroupId, productID)
-			if bucket == model.UserQuotaBucketPayToken && selectedProductID != 0 {
-				relayInfo.PayTokenProductId = selectedProductID
-			}
-			setRelaySubscriptionAllocations(relayInfo, subscriptionAllocations)
 			if errors.Is(err, model.ErrUserDailyQuotaExceeded) {
 				if bucket == model.UserQuotaBucketTokens {
 					totalRemaining, dailyCapacity, totalUnlimited, dailyUnlimited, capErr := model.GetUserTokenSubscriptionCapacityForGroup(relayInfo.UserId, relayInfo.UsingGroupId)
@@ -358,12 +361,18 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 				relayInfo.FinalPreConsumedQuota = 0
 				relayInfo.FinalPreConsumedTokens = 0
 				setRelaySubscriptionAllocations(relayInfo, nil)
+				if bucket == model.UserQuotaBucketPayToken {
+					setRelayPayTokenAllocations(relayInfo, nil)
+				}
 				return types.NewErrorWithStatusCode(err, types.ErrorCodeUserDailyQuotaExceeded, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 			}
 			if err != nil {
 				relayInfo.FinalPreConsumedQuota = 0
 				relayInfo.FinalPreConsumedTokens = 0
 				setRelaySubscriptionAllocations(relayInfo, nil)
+				if bucket == model.UserQuotaBucketPayToken {
+					setRelayPayTokenAllocations(relayInfo, nil)
+				}
 				return types.NewErrorWithStatusCode(err, types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 			}
 		}
@@ -372,22 +381,26 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 			err := PreConsumeTokenQuota(relayInfo, preConsumedQuota)
 			if err != nil {
 				// rollback user tokens to keep token/user consistent
-				rollbackProductID := 0
+				var rollbackErr error
 				if bucket == model.UserQuotaBucketPayToken {
-					rollbackProductID = relayInfo.PayTokenProductId
+					rollbackErr = returnRelayPayTokenQuota(relayInfo, preConsumedTokens)
+				} else {
+					rollbackErr = model.ReturnUserQuotaByBucketWithAllocations(
+						relayInfo.UserId,
+						preConsumedTokens,
+						bucket,
+						relayInfo.UsingGroupId,
+						0,
+						relayInfo.SubscriptionAllocations,
+					)
 				}
-				rollbackErr := model.ReturnUserQuotaByBucketWithAllocations(
-					relayInfo.UserId,
-					preConsumedTokens,
-					bucket,
-					relayInfo.UsingGroupId,
-					rollbackProductID,
-					relayInfo.SubscriptionAllocations,
-				)
 				if rollbackErr == nil {
 					relayInfo.FinalPreConsumedQuota = 0
 					relayInfo.FinalPreConsumedTokens = 0
 					setRelaySubscriptionAllocations(relayInfo, nil)
+					if bucket == model.UserQuotaBucketPayToken {
+						setRelayPayTokenAllocations(relayInfo, nil)
+					}
 				} else {
 					err = combineBillingRollbackError(err, rollbackErr, "回滚预扣用户tokens")
 				}
@@ -426,24 +439,26 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 		var decErr error
 		if relayInfo.QuotaBucket == model.UserQuotaBucketPayg {
 			decErr = consumeRelayPaygQuota(relayInfo, preConsumedQuota)
+		} else if relayInfo.QuotaBucket == model.UserQuotaBucketPayToken {
+			decErr = consumeRelayPayTokenQuota(relayInfo, preConsumedQuota)
 		} else if relayInfo.QuotaBucket == model.UserQuotaBucketSubscription {
 			decErr = consumeRelaySubscriptionQuota(relayInfo, preConsumedQuota)
 		} else {
-			selectedPaygProductId, innerErr := model.DecreaseUserQuotaByBucket(
+			_, innerErr := model.DecreaseUserQuotaByBucket(
 				relayInfo.UserId,
 				preConsumedQuota,
 				relayInfo.QuotaBucket,
 				relayInfo.UsingGroupId,
-				relayInfo.PaygProductId,
+				0,
 			)
-			if selectedPaygProductId != 0 {
-				relayInfo.PaygProductId = selectedPaygProductId
-			}
 			decErr = innerErr
 		}
 		if decErr != nil {
 			relayInfo.FinalPreConsumedQuota = 0
 			setRelaySubscriptionAllocations(relayInfo, nil)
+			if relayInfo.QuotaBucket == model.UserQuotaBucketPayToken {
+				setRelayPayTokenAllocations(relayInfo, nil)
+			}
 			if errors.Is(decErr, model.ErrUserDailyQuotaExceeded) {
 				totalRemaining, dailyCapacity, totalUnlimited, dailyUnlimited, capErr := model.GetUserSubscriptionCapacityForGroup(relayInfo.UserId, relayInfo.UsingGroupId)
 				if capErr != nil {
@@ -470,6 +485,8 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 			var rollbackErr error
 			if relayInfo.QuotaBucket == model.UserQuotaBucketPayg {
 				rollbackErr = returnRelayPaygQuota(relayInfo, preConsumedQuota)
+			} else if relayInfo.QuotaBucket == model.UserQuotaBucketPayToken {
+				rollbackErr = returnRelayPayTokenQuota(relayInfo, preConsumedQuota)
 			} else if relayInfo.QuotaBucket == model.UserQuotaBucketSubscription {
 				rollbackErr = returnRelaySubscriptionQuota(relayInfo, preConsumedQuota)
 			} else {
@@ -478,12 +495,15 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 					preConsumedQuota,
 					relayInfo.QuotaBucket,
 					relayInfo.UsingGroupId,
-					relayInfo.PaygProductId,
+					0,
 				)
 			}
 			if rollbackErr == nil {
 				relayInfo.FinalPreConsumedQuota = 0
 				setRelaySubscriptionAllocations(relayInfo, nil)
+				if relayInfo.QuotaBucket == model.UserQuotaBucketPayToken {
+					setRelayPayTokenAllocations(relayInfo, nil)
+				}
 			} else {
 				decTokenErr = combineBillingRollbackError(decTokenErr, rollbackErr, "回滚预扣用户额度")
 			}
@@ -554,19 +574,18 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 		if relayInfo.QuotaBucket != "" {
 			if relayInfo.QuotaBucket == model.UserQuotaBucketPayg {
 				err = consumeRelayPaygQuota(relayInfo, preConsumedQuota)
+			} else if relayInfo.QuotaBucket == model.UserQuotaBucketPayToken {
+				err = consumeRelayPayTokenQuota(relayInfo, preConsumedQuota)
 			} else if relayInfo.QuotaBucket == model.UserQuotaBucketSubscription {
 				err = consumeRelaySubscriptionQuota(relayInfo, preConsumedQuota)
 			} else {
-				selectedPaygProductId, decErr := model.DecreaseUserQuotaByBucket(
+				_, decErr := model.DecreaseUserQuotaByBucket(
 					relayInfo.UserId,
 					preConsumedQuota,
 					relayInfo.QuotaBucket,
 					relayInfo.UsingGroupId,
-					relayInfo.PaygProductId,
+					0,
 				)
-				if selectedPaygProductId != 0 {
-					relayInfo.PaygProductId = selectedPaygProductId
-				}
 				err = decErr
 			}
 		} else {
@@ -575,6 +594,9 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 		if err != nil {
 			relayInfo.FinalPreConsumedQuota = 0
 			setRelaySubscriptionAllocations(relayInfo, nil)
+			if relayInfo.QuotaBucket == model.UserQuotaBucketPayToken {
+				setRelayPayTokenAllocations(relayInfo, nil)
+			}
 			if errors.Is(err, model.ErrUserDailyQuotaExceeded) {
 				totalRemaining, dailyCapacity, totalUnlimited, dailyUnlimited, capErr := model.GetUserSubscriptionCapacityForGroup(relayInfo.UserId, relayInfo.UsingGroupId)
 				if capErr != nil {
@@ -600,6 +622,8 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 			if relayInfo.QuotaBucket != "" {
 				if relayInfo.QuotaBucket == model.UserQuotaBucketPayg {
 					rollbackErr = returnRelayPaygQuota(relayInfo, preConsumedQuota)
+				} else if relayInfo.QuotaBucket == model.UserQuotaBucketPayToken {
+					rollbackErr = returnRelayPayTokenQuota(relayInfo, preConsumedQuota)
 				} else if relayInfo.QuotaBucket == model.UserQuotaBucketSubscription {
 					rollbackErr = returnRelaySubscriptionQuota(relayInfo, preConsumedQuota)
 				} else {
@@ -608,7 +632,7 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 						preConsumedQuota,
 						relayInfo.QuotaBucket,
 						relayInfo.UsingGroupId,
-						relayInfo.PaygProductId,
+						0,
 					)
 				}
 			} else {
@@ -617,6 +641,9 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 			if rollbackErr == nil {
 				relayInfo.FinalPreConsumedQuota = 0
 				setRelaySubscriptionAllocations(relayInfo, nil)
+				if relayInfo.QuotaBucket == model.UserQuotaBucketPayToken {
+					setRelayPayTokenAllocations(relayInfo, nil)
+				}
 			} else {
 				err = combineBillingRollbackError(err, rollbackErr, "回滚预扣用户额度")
 			}
@@ -730,7 +757,8 @@ func ensureDailyQuotaAvailability(relayInfo *relaycommon.RelayInfo) error {
 			}
 			// Pay-request buckets already reserve the current request's count credit before reaching this check
 			// in the normal relay path. Keep a read-only fallback here for other callers.
-			if relayInfo.FinalPreConsumedPayRequests == 0 || relayInfo.PayRequestProductId == 0 {
+			if relayInfo.FinalPreConsumedPayRequests == 0 ||
+				(relayInfo.PayRequestProductId == 0 && len(relayInfo.PayRequestProductAllocations) == 0) {
 				if relayInfo.UsingGroupId <= 0 {
 					return errors.New("按次付费缺少分组信息")
 				}

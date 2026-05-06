@@ -60,14 +60,19 @@ func upsertPayRequestProductTx(tx *gorm.DB, product PayRequestProduct, groupIDs 
 		return err
 	}
 	ids := normalizeUniqueSortedIDs(groupIDs)
-	if len(ids) == 0 {
+	if len(ids) == 0 && product.Enabled && !product.Archived {
 		return errors.New("至少需要一个分组")
 	}
-	if err := ValidateGroupIDsExist(tx, ids); err != nil {
-		return err
+	if len(ids) > 0 {
+		if err := ValidateGroupIDsExist(tx, ids); err != nil {
+			return err
+		}
 	}
 	if err := tx.Where("product_id = ?", product.Id).Delete(&PayRequestProductGroup{}).Error; err != nil {
 		return err
+	}
+	if len(ids) == 0 {
+		return nil
 	}
 	rows := make([]PayRequestProductGroup, 0, len(ids))
 	for _, groupID := range ids {

@@ -34,6 +34,9 @@ import { IconDelete, IconPlus } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 
 import { API, showError, showSuccess } from '../../../helpers';
+import RatioTag, {
+  formatRatioValue,
+} from '../../../components/common/ui/RatioTag';
 
 const { Text } = Typography;
 
@@ -70,11 +73,7 @@ const displayUserLabel = (record) =>
     record?.display_name || record?.username || record?.email || '',
   ).trim() || `#${record?.user_id ?? 0}`;
 
-const formatRatio = (value) => {
-  const factor = Number(value);
-  if (!Number.isFinite(factor)) return '1';
-  return factor.toFixed(6).replace(/\.?0+$/, '');
-};
+const formatRatio = formatRatioValue;
 
 export default function GroupUserPriceOverridesModal({
   visible,
@@ -302,7 +301,7 @@ export default function GroupUserPriceOverridesModal({
       title: t('默认倍率'),
       key: 'base_factor',
       width: 120,
-      render: () => <Text>{formatRatio(group?.ratio)}x</Text>,
+      render: () => <RatioTag value={group?.ratio} />,
     },
     {
       title: t('专属倍率'),

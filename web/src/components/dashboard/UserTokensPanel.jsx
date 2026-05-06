@@ -26,7 +26,13 @@ import React, {
 } from 'react';
 import { Button, Card, Empty, Input, Modal, Skeleton } from '@douyinfe/semi-ui';
 import { KeyRound } from 'lucide-react';
-import { API, copy, showError, showSuccess } from '../../helpers';
+import {
+  API,
+  copy,
+  renderQuotaToUSD,
+  showError,
+  showSuccess,
+} from '../../helpers';
 import TokenGroupPrioritySelector, {
   normalizeTokenGroupIds,
 } from '../token/TokenGroupPrioritySelector';
@@ -212,6 +218,7 @@ const UserTokensPanel = ({ CARD_PROPS, FLEX_CENTER_GAP2, t }) => {
         ...token,
         fullKey: `sk-${token.key}`,
         maskedKey: maskKey(token.key),
+        usageUsd: renderQuotaToUSD(Number(token.used_quota ?? 0) || 0, 6),
       })),
     [tokens],
   );
@@ -456,8 +463,13 @@ const UserTokensPanel = ({ CARD_PROPS, FLEX_CENTER_GAP2, t }) => {
                               {formatGroupIds(token.allowed_group_ids)}
                             </div>
                           ) : null}
-                          <div className='mt-2 truncate text-xs font-mono tracking-[0.02em] text-neutral-500 dark:text-neutral-300'>
-                            {token.maskedKey}
+                          <div className='mt-2 flex min-w-0 items-center gap-3 overflow-hidden text-xs leading-5 text-neutral-500 dark:text-neutral-300'>
+                            <span className='min-w-0 truncate font-mono tracking-[0.02em]'>
+                              {token.maskedKey}
+                            </span>
+                            <span className='shrink-0'>
+                              {t('额度消耗($)')}: {token.usageUsd}
+                            </span>
                           </div>
                         </div>
                         <div className='flex shrink-0 flex-wrap items-center justify-end gap-2 self-center'>

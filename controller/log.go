@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"one-api/common"
 	"one-api/model"
+	"one-api/setting/operation_setting"
 	"strconv"
 	"strings"
 
@@ -229,6 +230,48 @@ func GetLogsSelfStat(c *gin.Context) {
 	return
 }
 
+func GetLogsTokenQuotaStat(c *gin.Context) {
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	username := c.Query("username")
+	tokenName := c.Query("token_name")
+	modelName := c.Query("model_name")
+	channel, _ := strconv.Atoi(c.Query("channel"))
+	group, err := parseLogGroupIDQuery(c)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+
+	stat, err := model.SumTokenQuotaStat(startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, stat)
+}
+
+func GetLogsSelfTokenQuotaStat(c *gin.Context) {
+	userId := c.GetInt("id")
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	tokenName := c.Query("token_name")
+	modelName := c.Query("model_name")
+	channel, _ := strconv.Atoi(c.Query("channel"))
+	group, err := parseLogGroupIDQuery(c)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+
+	stat, err := model.SumTokenQuotaStatByUserId(userId, startTimestamp, endTimestamp, modelName, tokenName, channel, group)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, stat)
+}
+
 func GetLogsSelfCacheStat(c *gin.Context) {
 	userId := c.GetInt("id")
 	startTimestamp, err := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
@@ -256,6 +299,40 @@ func GetLogsSelfCacheStat(c *gin.Context) {
 	}
 
 	stat, err := model.SumUserCacheStat(userId, startTimestamp, endTimestamp)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, stat)
+}
+
+func GetLogsSelfCacheStatByUA(c *gin.Context) {
+	userId := c.GetInt("id")
+	startTimestamp, err := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	if err != nil || startTimestamp <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "start_timestamp is required",
+		})
+		return
+	}
+	endTimestamp, err := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	if err != nil || endTimestamp <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "end_timestamp is required",
+		})
+		return
+	}
+	if endTimestamp < startTimestamp {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "end_timestamp must be greater than or equal to start_timestamp",
+		})
+		return
+	}
+
+	stat, err := model.SumUserCacheStatByUA(userId, startTimestamp, endTimestamp, parseMonitorUAContains())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -306,6 +383,85 @@ func GetLogsCacheStat(c *gin.Context) {
 	common.ApiSuccess(c, stat)
 }
 
+func parseMonitorUAContains() []string {
+	raw := strings.TrimSpace(operation_setting.GetMonitorSetting().ServiceStatusUAContains)
+	if raw == "" {
+		return nil
+	}
+	raw = strings.ReplaceAll(raw, "\r\n", "\n")
+	raw = strings.ReplaceAll(raw, "\r", "\n")
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		switch r {
+		case '\n', ',', ';':
+			return true
+		default:
+			return false
+		}
+	})
+	if len(parts) == 0 {
+		return nil
+	}
+
+	keywords := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		keyword := strings.TrimSpace(part)
+		if keyword == "" {
+			continue
+		}
+		normalized := strings.ToLower(keyword)
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		keywords = append(keywords, keyword)
+	}
+	return keywords
+}
+
+func GetLogsCacheStatByUA(c *gin.Context) {
+	startTimestamp, err := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	if err != nil || startTimestamp <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "start_timestamp is required",
+		})
+		return
+	}
+	endTimestamp, err := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	if err != nil || endTimestamp <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "end_timestamp is required",
+		})
+		return
+	}
+	if endTimestamp < startTimestamp {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "end_timestamp must be greater than or equal to start_timestamp",
+		})
+		return
+	}
+
+	username := c.Query("username")
+	tokenName := c.Query("token_name")
+	modelName := c.Query("model_name")
+	channel, _ := strconv.Atoi(c.Query("channel"))
+	group, err := parseLogGroupIDQuery(c)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+
+	stat, err := model.SumCacheStatByUA(startTimestamp, endTimestamp, modelName, username, tokenName, channel, group, parseMonitorUAContains())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, stat)
+}
+
 func GetLogsGlobalCacheStat(c *gin.Context) {
 	startTimestamp, err := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	if err != nil || startTimestamp <= 0 {
@@ -332,6 +488,39 @@ func GetLogsGlobalCacheStat(c *gin.Context) {
 	}
 
 	stat, err := model.SumCacheStat(startTimestamp, endTimestamp, "", "", "", 0, "")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, stat)
+}
+
+func GetLogsGlobalCacheStatByUA(c *gin.Context) {
+	startTimestamp, err := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	if err != nil || startTimestamp <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "start_timestamp is required",
+		})
+		return
+	}
+	endTimestamp, err := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	if err != nil || endTimestamp <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "end_timestamp is required",
+		})
+		return
+	}
+	if endTimestamp < startTimestamp {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "end_timestamp must be greater than or equal to start_timestamp",
+		})
+		return
+	}
+
+	stat, err := model.SumCacheStatByUA(startTimestamp, endTimestamp, "", "", "", 0, "", parseMonitorUAContains())
 	if err != nil {
 		common.ApiError(c, err)
 		return

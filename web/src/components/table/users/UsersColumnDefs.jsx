@@ -35,6 +35,7 @@ import {
   renderQuotaToUSD,
   timestamp2string,
 } from '../../../helpers';
+import RatioTag from '../../common/ui/RatioTag';
 
 /**
  * Render user role
@@ -336,9 +337,9 @@ export const getUsersColumns = ({
       render: (_, record) => {
         const multiplier = Number(record.base_multiplier ?? 1);
         if (!Number.isFinite(multiplier) || multiplier <= 0) {
-          return '1.00x';
+          return <RatioTag value={1} />;
         }
-        return `${multiplier.toFixed(2)}x`;
+        return <RatioTag value={multiplier} />;
       },
     },
     {

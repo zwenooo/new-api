@@ -22,7 +22,6 @@ import { Wallet, Activity, Zap, Gauge } from 'lucide-react';
 import {
   IconHistogram,
   IconCoinMoneyStroked,
-  IconTextStroked,
   IconPulse,
   IconStopwatchStroked,
   IconTypograph,
@@ -44,10 +43,7 @@ export const useDashboardStats = (
   consumeTokens,
   times,
   todayUsedQuota,
-  todayStandardUsedQuota,
   todayUsedTimes,
-  todayCacheHitRate,
-  todayGlobalCacheHitRate,
   trendData,
   performanceMetrics,
   navigate,
@@ -58,11 +54,6 @@ export const useDashboardStats = (
   const quotaBreakdown = userState?.user?.quota_breakdown ?? {};
   const paygRemaining = Number(quotaBreakdown?.payg_remaining ?? 0) || 0;
   const actualUsedQuota = Number(userState?.user?.used_quota ?? 0) || 0;
-  const standardUsedQuota =
-    userState?.user?.cost_used_quota !== undefined &&
-    userState?.user?.cost_used_quota !== null
-      ? Number(userState.user.cost_used_quota) || 0
-      : 0;
 
   const activeSubscriptions = quotaBreakdown?.subscriptions ?? [];
   const subscriptionsAll = quotaBreakdown?.subscriptions_all ?? [];
@@ -176,49 +167,44 @@ export const useDashboardStats = (
   const isAdminUser = isEffectiveAdmin();
 
   const todayTotalUsed = todayUsedQuota ?? 0;
-  const todayStandardTotalUsed =
-    todayStandardUsedQuota === undefined || todayStandardUsedQuota === null
-      ? 0
-      : todayStandardUsedQuota;
   const todayTotalTimes = todayUsedTimes ?? 0;
-  const subscriptionTodayAvailableQuota = activeSubscriptions.reduce((sum, sub) => {
-    if (!Number.isFinite(sum)) return sum;
+  const subscriptionTodayAvailableQuota = activeSubscriptions.reduce(
+    (sum, sub) => {
+      if (!Number.isFinite(sum)) return sum;
 
-    const invalidAt = Number(sub?.invalid_at ?? 0);
-    if (invalidAt > 0) return sum;
+      const invalidAt = Number(sub?.invalid_at ?? 0);
+      if (invalidAt > 0) return sum;
 
-    const unlimitedTotal = Number(sub?.total_quota ?? 0) === 0;
-    const remainingQuota = Number(sub?.remaining_quota ?? 0);
+      const unlimitedTotal = Number(sub?.total_quota ?? 0) === 0;
+      const remainingQuota = Number(sub?.remaining_quota ?? 0);
 
-    if (unlimitedTotal) {
-      const dailyLimit = Number(sub?.daily_quota_limit ?? 0);
-      const dailyUsed = Number(sub?.daily_quota_used ?? 0);
-      if (dailyLimit > 0) {
-        const dailyRemaining = Math.max(dailyLimit - dailyUsed, 0);
-        return sum + dailyRemaining;
+      if (unlimitedTotal) {
+        const dailyLimit = Number(sub?.daily_quota_limit ?? 0);
+        const dailyUsed = Number(sub?.daily_quota_used ?? 0);
+        if (dailyLimit > 0) {
+          const dailyRemaining = Math.max(dailyLimit - dailyUsed, 0);
+          return sum + dailyRemaining;
+        }
+        return Number.POSITIVE_INFINITY;
       }
-      return Number.POSITIVE_INFINITY;
-    }
 
-    if (remainingQuota <= 0) return sum;
+      if (remainingQuota <= 0) return sum;
 
-    if (sub.daily_quota_limit > 0) {
-      const dailyRemaining = Math.max(
-        (sub.daily_quota_limit ?? 0) - (sub.daily_quota_used ?? 0),
-        0,
-      );
-      return sum + Math.min(dailyRemaining, remainingQuota);
-    }
+      if (sub.daily_quota_limit > 0) {
+        const dailyRemaining = Math.max(
+          (sub.daily_quota_limit ?? 0) - (sub.daily_quota_used ?? 0),
+          0,
+        );
+        return sum + Math.min(dailyRemaining, remainingQuota);
+      }
 
-    return sum + remainingQuota;
-  }, 0);
+      return sum + remainingQuota;
+    },
+    0,
+  );
   const todayAvailableQuota = Number.isFinite(subscriptionTodayAvailableQuota)
     ? paygRemaining + subscriptionTodayAvailableQuota
     : Number.POSITIVE_INFINITY;
-  const hasDailyReset = activeSubscriptions.some(
-    (sub) => (sub.daily_quota_limit ?? 0) > 0,
-  );
-
   const groupedStatsData = useMemo(() => {
     const groups = [];
 
@@ -235,13 +221,6 @@ export const useDashboardStats = (
 
     if (isAdminUser) {
       // 管理员：保留原有「使用统计 / 资源消耗」
-      const selfCacheHitRateValue = Number.isFinite(todayCacheHitRate)
-        ? `${(todayCacheHitRate * 100).toFixed(2)}%`
-        : '-';
-      const globalCacheHitRateValue = Number.isFinite(todayGlobalCacheHitRate)
-        ? `${(todayGlobalCacheHitRate * 100).toFixed(2)}%`
-        : '-';
-
       groups.push(
         {
           key: 'usage',
@@ -267,25 +246,17 @@ export const useDashboardStats = (
           ],
         },
         {
-          key: 'cache',
-          title: createSectionTitle(Gauge, t('缓存命中率')),
+          key: 'tokens',
+          title: createSectionTitle(Gauge, t('今日TOKEN消耗')),
           color: 'bg-indigo-50',
           items: [
             {
-              title: t('全站'),
-              value: globalCacheHitRateValue,
+              title: t('今日TOKEN消耗'),
+              value: isNaN(consumeTokens) ? 0 : consumeTokens.toLocaleString(),
               icon: <IconPulse />,
               avatarColor: 'indigo',
-              trendData: [],
+              trendData: trendData.tokens,
               trendColor: '#6366f1',
-            },
-            {
-              title: t('我的'),
-              value: selfCacheHitRateValue,
-              icon: <IconPulse />,
-              avatarColor: 'cyan',
-              trendData: [],
-              trendColor: '#06b6d4',
             },
           ],
         },
@@ -309,27 +280,12 @@ export const useDashboardStats = (
               trendData: trendData.consumeQuota,
               trendColor: '#f59e0b',
             },
-            {
-              title: t('统计Tokens'),
-              value: isNaN(consumeTokens) ? 0 : consumeTokens.toLocaleString(),
-              icon: <IconTextStroked />,
-              avatarColor: 'pink',
-              trendData: trendData.tokens,
-              trendColor: '#ec4899',
-            },
           ],
         },
       );
     } else {
       // 普通用户：将「使用统计」改为「今日消费」，将「资源消耗」改为「今日剩余额度」，并新增「历史消耗」
       const historyTotalConsumed = actualUsedQuota;
-      const historyStandardConsumed = standardUsedQuota;
-      const cacheHitRateValue = Number.isFinite(todayCacheHitRate)
-        ? `${(todayCacheHitRate * 100).toFixed(2)}%`
-        : '-';
-      const globalCacheHitRateValue = Number.isFinite(todayGlobalCacheHitRate)
-        ? `${(todayGlobalCacheHitRate * 100).toFixed(2)}%`
-        : '-';
 
       groups.push(
         {
@@ -340,13 +296,6 @@ export const useDashboardStats = (
             {
               title: t('今日消费'),
               value: renderQuota(todayTotalUsed),
-              subtitle:
-                todayStandardTotalUsed > 0 &&
-                todayStandardTotalUsed !== todayTotalUsed
-                  ? `${t('标准费用')} ${renderQuota(todayStandardTotalUsed)} · ${t('调用 {{count}} 次', { count: todayTotalTimes })}`
-                  : t('调用 {{count}} 次', { count: todayTotalTimes }),
-              subtitleClassName: 'text-[13px]',
-              subtitleBelow: true,
               icon: <IconSend />,
               avatarColor: 'green',
               trendData: [],
@@ -355,19 +304,31 @@ export const useDashboardStats = (
           ],
         },
         {
-          key: 'cache',
-          title: createSectionTitle(Gauge, t('缓存命中率')),
+          key: 'today-calls',
+          title: createSectionTitle(Activity, t('今日调用次数')),
+          color: 'bg-cyan-50',
+          items: [
+            {
+              title: t('今日调用次数'),
+              value: todayTotalTimes.toLocaleString(),
+              icon: <IconPulse />,
+              avatarColor: 'cyan',
+              trendData: [],
+              trendColor: '#06b6d4',
+            },
+          ],
+        },
+        {
+          key: 'tokens',
+          title: createSectionTitle(Gauge, t('今日TOKEN消耗')),
           color: 'bg-indigo-50',
           items: [
             {
-              title: t('缓存命中率'),
-              value: cacheHitRateValue,
-              subtitle: `${t('全站')}: ${globalCacheHitRateValue}`,
-              subtitleClassName: 'text-[13px]',
-              subtitleBelow: true,
+              title: t('今日TOKEN消耗'),
+              value: isNaN(consumeTokens) ? 0 : consumeTokens.toLocaleString(),
               icon: <IconPulse />,
               avatarColor: 'indigo',
-              trendData: [],
+              trendData: trendData.tokens,
               trendColor: '#6366f1',
             },
           ],
@@ -380,13 +341,6 @@ export const useDashboardStats = (
             {
               title: t('历史消耗'),
               value: renderQuota(historyTotalConsumed),
-              subtitle:
-                historyStandardConsumed > 0 &&
-                historyStandardConsumed !== historyTotalConsumed
-                  ? `${t('标准费用')} ${renderQuota(historyStandardConsumed)}`
-                  : null,
-              subtitleClassName: 'text-[13px]',
-              subtitleBelow: true,
               icon: <IconHistogram />,
               avatarColor: 'purple',
               trendData: [],
@@ -404,9 +358,6 @@ export const useDashboardStats = (
               value: Number.isFinite(todayAvailableQuota)
                 ? renderQuota(todayAvailableQuota)
                 : t('无限'),
-              subtitle: hasDailyReset ? t('每日0点重置') : null,
-              subtitleClassName: hasDailyReset ? 'text-[13px]' : undefined,
-              subtitleBelow: true,
               icon: <IconCoinMoneyStroked />,
               avatarColor: 'yellow',
               trendData: [],
@@ -449,20 +400,16 @@ export const useDashboardStats = (
     consumeQuota,
     consumeTokens,
     isAdminUser,
-    hasDailyReset,
     navigate,
     performanceMetrics,
     subscriptionItems,
     t,
     times,
     todayAvailableQuota,
-    todayCacheHitRate,
-    todayGlobalCacheHitRate,
     todayTotalTimes,
     todayTotalUsed,
     standardConsumeQuota,
     trendData,
-    standardUsedQuota,
     actualUsedQuota,
     userState?.user?.quota_breakdown,
     userState?.user?.request_count,

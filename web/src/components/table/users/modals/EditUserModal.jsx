@@ -32,6 +32,7 @@ import {
 } from '../../../../helpers';
 import { PRICING_PROFILE_REQUEST_VERSION } from '../../../../constants/common.constant';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import GroupRatioPill from '../../../common/ui/GroupRatioPill';
 import {
   Button,
   Dropdown,
@@ -81,12 +82,6 @@ const normalizeGroupIds = (rawIds) => {
     out.push(id);
   });
   return out.sort((a, b) => a - b);
-};
-
-const formatRatio = (ratioValue) => {
-  const ratio = Number(ratioValue);
-  if (!Number.isFinite(ratio)) return '1';
-  return ratio.toFixed(6).replace(/\.?0+$/, '');
 };
 
 const normalizePositiveFactor = (rawFactor, fallback = 1) => {
@@ -1115,7 +1110,7 @@ const EditUserModal = (props) => {
     const ratio =
       effectiveGroupRatios?.[normalizedGroupId] ??
       groupRatios?.[normalizedGroupId];
-    return `${label} * ${formatRatio(ratio)}`;
+    return <GroupRatioPill label={label} ratio={ratio} />;
   };
 
   const applyLoadedUserFormData = (data) => {
@@ -3059,9 +3054,7 @@ const EditUserModal = (props) => {
                             key={`sub-${subscription.id}-group-${row.group_id}`}
                           >
                             <div className='font-semibold text-neutral-800 dark:text-neutral-100'>
-                              <Text code style={{ fontSize: 12 }}>
-                                {formatGroupRatioLabel(row.group_id)}
-                              </Text>
+                              {formatGroupRatioLabel(row.group_id)}
                             </div>
                             <div className='font-semibold text-neutral-800 dark:text-neutral-100'>
                               {renderQuota(row.daily_quota_used)}
@@ -3303,13 +3296,11 @@ const EditUserModal = (props) => {
                           </span>
                           <span className='inline-flex flex-wrap gap-1'>
                             {groups.map((g) => (
-                              <Text
+                              <span
                                 key={`req-sub-${subscription.id}-${g}`}
-                                code
-                                style={{ fontSize: 12 }}
                               >
                                 {formatGroupRatioLabel(g)}
-                              </Text>
+                              </span>
                             ))}
                           </span>
                         </div>
@@ -3735,13 +3726,11 @@ const EditUserModal = (props) => {
                                   <div className='mt-1 flex flex-wrap items-center gap-1'>
                                     {normalizeGroupIds(b.allowed_group_ids).map(
                                       (gid) => (
-                                        <Text
+                                        <span
                                           key={`payg-${b.product_id}-${gid}`}
-                                          code
-                                          style={{ fontSize: 12 }}
                                         >
                                           {formatGroupRatioLabel(gid)}
-                                        </Text>
+                                        </span>
                                       ),
                                     )}
                                   </div>
@@ -3983,13 +3972,11 @@ const EditUserModal = (props) => {
                         </span>
                         <span className='inline-flex flex-wrap gap-1'>
                           {groupIds.map((gid) => (
-                            <Text
+                            <span
                               key={`preset-${preset.id}-${gid}`}
-                              code
-                              style={{ fontSize: 12 }}
                             >
                               {formatGroupRatioLabel(gid)}
-                            </Text>
+                            </span>
                           ))}
                         </span>
                       </div>
@@ -4185,13 +4172,11 @@ const EditUserModal = (props) => {
                         </span>
                         <span className='inline-flex flex-wrap gap-1'>
                           {groupIds.map((gid) => (
-                            <Text
+                            <span
                               key={`req-preset-${preset.id}-${gid}`}
-                              code
-                              style={{ fontSize: 12 }}
                             >
                               {formatGroupRatioLabel(gid)}
-                            </Text>
+                            </span>
                           ))}
                         </span>
                       </div>
@@ -4331,13 +4316,11 @@ const EditUserModal = (props) => {
                     {t('倍率')}：
                     <span className='inline-flex flex-wrap gap-1'>
                       {selectedGroupIds.map((gid) => (
-                        <Text
+                        <span
                           key={`payg-balance-group-${pid}-${gid}`}
-                          code
-                          style={{ fontSize: 12 }}
                         >
                           {formatGroupRatioLabel(gid)}
-                        </Text>
+                        </span>
                       ))}
                     </span>
                   </div>
@@ -4397,13 +4380,11 @@ const EditUserModal = (props) => {
                         {t('可选分组')}：
                         <span className='inline-flex flex-wrap gap-1'>
                           {groupIds.map((gid) => (
-                            <Text
+                            <span
                               key={`payg-topup-${pid}-${gid}`}
-                              code
-                              style={{ fontSize: 12 }}
                             >
                               {formatGroupRatioLabel(gid)}
-                            </Text>
+                            </span>
                           ))}
                         </span>
                       </div>
@@ -4475,9 +4456,7 @@ const EditUserModal = (props) => {
                 {groupId ? (
                   <div className='text-xs text-gray-500'>
                     {t('倍率')}：
-                    <Text code style={{ fontSize: 12 }}>
-                      {formatGroupRatioLabel(groupId)}
-                    </Text>
+                    {formatGroupRatioLabel(groupId)}
                   </div>
                 ) : null}
 

@@ -2,7 +2,10 @@ package model
 
 import (
 	"path/filepath"
+	"reflect"
 	"testing"
+
+	relaycommon "one-api/relay/common"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -116,5 +119,83 @@ func TestPreConsumeUserPayRequestQuotaWithProductReturnsSelectedProductID(t *tes
 	}
 	if storedUser.PayRequestQuota != 12 {
 		t.Fatalf("user pay_request_quota after restore = %d, want 12", storedUser.PayRequestQuota)
+	}
+}
+
+func TestConsumeAndRestoreUserPayRequestQuotaWithAllocations(t *testing.T) {
+	db := newPayRequestTestDB(t)
+	withModelDB(t, db)
+
+	groupX := createTestGroup(t, db, "x")
+	groupY := createTestGroup(t, db, "y")
+
+	user := User{
+		Username: "pay-request-allocations",
+		Password: "password123",
+		GroupId:  groupX.Id,
+		Group:    groupX.Code,
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	createPayRequestBalance(t, db, user.Id, 99101, 30, 3, []int{groupX.Id})
+	createPayRequestBalance(t, db, user.Id, 99102, 20, 4, []int{groupX.Id})
+	createPayRequestBalance(t, db, user.Id, 99103, 10, 9, []int{groupY.Id})
+
+	allocations, err := DecreaseUserPayRequestQuotaWithAllocations(user.Id, groupX.Id, 5)
+	if err != nil {
+		t.Fatalf("DecreaseUserPayRequestQuotaWithAllocations() error = %v", err)
+	}
+	wantAllocations := []relaycommon.ProductQuotaAllocation{
+		{ProductId: 99101, Quota: 3},
+		{ProductId: 99102, Quota: 2},
+	}
+	if !reflect.DeepEqual(allocations, wantAllocations) {
+		t.Fatalf("DecreaseUserPayRequestQuotaWithAllocations() allocations = %#v, want %#v", allocations, wantAllocations)
+	}
+
+	var balances []PayRequestUserBalance
+	if err := db.Order("product_id ASC").Find(&balances).Error; err != nil {
+		t.Fatalf("reload balances: %v", err)
+	}
+	gotRemaining := map[int]int{}
+	for _, balance := range balances {
+		gotRemaining[balance.ProductId] = balance.RemainingRequests
+	}
+	wantRemaining := map[int]int{99101: 0, 99102: 2, 99103: 9}
+	if !reflect.DeepEqual(gotRemaining, wantRemaining) {
+		t.Fatalf("remaining requests = %#v, want %#v", gotRemaining, wantRemaining)
+	}
+
+	var storedUser User
+	if err := db.First(&storedUser, user.Id).Error; err != nil {
+		t.Fatalf("reload user after consume: %v", err)
+	}
+	if storedUser.PayRequestQuota != 11 {
+		t.Fatalf("user pay_request_quota after consume = %d, want 11", storedUser.PayRequestQuota)
+	}
+
+	if err := ReturnUserPayRequestQuotaWithAllocations(user.Id, allocations); err != nil {
+		t.Fatalf("ReturnUserPayRequestQuotaWithAllocations() error = %v", err)
+	}
+
+	balances = nil
+	if err := db.Order("product_id ASC").Find(&balances).Error; err != nil {
+		t.Fatalf("reload balances after restore: %v", err)
+	}
+	gotRemaining = map[int]int{}
+	for _, balance := range balances {
+		gotRemaining[balance.ProductId] = balance.RemainingRequests
+	}
+	wantRemaining = map[int]int{99101: 3, 99102: 4, 99103: 9}
+	if !reflect.DeepEqual(gotRemaining, wantRemaining) {
+		t.Fatalf("remaining requests after restore = %#v, want %#v", gotRemaining, wantRemaining)
+	}
+	if err := db.First(&storedUser, user.Id).Error; err != nil {
+		t.Fatalf("reload user after restore: %v", err)
+	}
+	if storedUser.PayRequestQuota != 16 {
+		t.Fatalf("user pay_request_quota after restore = %d, want 16", storedUser.PayRequestQuota)
 	}
 }

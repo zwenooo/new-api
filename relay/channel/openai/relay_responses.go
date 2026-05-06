@@ -13,6 +13,7 @@ import (
 	relaycommon "one-api/relay/common"
 	"one-api/relay/helper"
 	"one-api/service"
+	"one-api/setting/operation_setting"
 	"one-api/types"
 	"strings"
 
@@ -28,6 +29,11 @@ type responsesEventStreamEnvelope struct {
 type responsesFunctionCallFallback struct {
 	Name      string
 	Arguments string
+}
+
+type responsesPendingClientEvent struct {
+	streamResponse dto.ResponsesStreamResponse
+	data           string
 }
 
 func isEventStreamResponse(contentType string, body []byte) bool {
@@ -239,6 +245,100 @@ func buildResponsesUsageFallbackText(text string, functionCalls map[string]respo
 	return builder.String()
 }
 
+func isResponsesInitialMetadataEvent(eventType string) bool {
+	switch strings.TrimSpace(eventType) {
+	case "response.created", "response.in_progress", "response.queued":
+		return true
+	default:
+		return false
+	}
+}
+
+func responsesStreamClientBodyWritten(c *gin.Context) bool {
+	return c != nil && c.Writer != nil && c.Writer.Size() > 0
+}
+
+func canRetryResponsesCapacityStream(c *gin.Context, sentClientEvent bool) bool {
+	return !sentClientEvent && !responsesStreamClientBodyWritten(c)
+}
+
+func isResponsesCapacityError(openAIError *types.OpenAIError) bool {
+	if openAIError == nil || len(operation_setting.ResponsesCapacityRetryKeywords) == 0 {
+		return false
+	}
+
+	haystacks := []string{
+		strings.ToLower(strings.TrimSpace(common.Interface2String(openAIError.Code))),
+		strings.ToLower(strings.TrimSpace(openAIError.Type)),
+		strings.ToLower(strings.TrimSpace(openAIError.Message)),
+	}
+	for _, keyword := range operation_setting.ResponsesCapacityRetryKeywords {
+		keyword = strings.ToLower(strings.TrimSpace(keyword))
+		if keyword == "" {
+			continue
+		}
+		for _, haystack := range haystacks {
+			if strings.Contains(haystack, keyword) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func normalizeResponsesCapacityOpenAIError(openAIError *types.OpenAIError) types.OpenAIError {
+	normalized := types.OpenAIError{}
+	if openAIError != nil {
+		normalized = *openAIError
+	}
+	if strings.TrimSpace(normalized.Message) == "" {
+		normalized.Message = "upstream responses error matched retry keyword"
+	}
+	if strings.TrimSpace(normalized.Type) == "" {
+		normalized.Type = "server_error"
+	}
+	if strings.TrimSpace(common.Interface2String(normalized.Code)) == "" {
+		normalized.Code = "responses_retry_keyword_matched"
+	}
+	return normalized
+}
+
+func buildResponsesCapacityRetryError(streamResponse dto.ResponsesStreamResponse, bodyMap map[string]interface{}) *types.NewAPIError {
+	candidates := make([]*types.OpenAIError, 0, 4)
+	if streamResponse.Response != nil {
+		candidates = append(candidates, streamResponse.Response.GetOpenAIError())
+	}
+	if bodyMap != nil {
+		candidates = append(candidates, dto.GetOpenAIError(bodyMap["error"]))
+		if responseObj, ok := bodyMap["response"].(map[string]interface{}); ok && responseObj != nil {
+			candidates = append(candidates, dto.GetOpenAIError(responseObj["error"]))
+		}
+		candidates = append(candidates, dto.GetOpenAIError(bodyMap))
+	}
+
+	for _, candidate := range candidates {
+		if !isResponsesCapacityError(candidate) {
+			continue
+		}
+		normalized := normalizeResponsesCapacityOpenAIError(candidate)
+		return types.WithOpenAIError(normalized, http.StatusServiceUnavailable)
+	}
+	return nil
+}
+
+func setResponsesCapacityRetryContext(c *gin.Context, reason string, apiErr *types.NewAPIError) {
+	if c == nil {
+		return
+	}
+	if strings.TrimSpace(reason) == "" {
+		reason = "failed"
+	}
+	common.SetContextKey(c, constant.ContextKeyStreamExitReason, reason)
+	if apiErr != nil {
+		common.SetContextKey(c, constant.ContextKeyStreamExitError, strings.TrimSpace(apiErr.Error()))
+	}
+}
+
 func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -265,8 +365,15 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
-	if oaiError := responsesResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
-		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
+	if oaiError := responsesResponse.GetOpenAIError(); oaiError != nil {
+		if operation_setting.ResponsesCapacityRetryEnabled {
+			if newAPIError := buildResponsesCapacityRetryError(dto.ResponsesStreamResponse{Response: &responsesResponse}, nil); newAPIError != nil {
+				return nil, newAPIError
+			}
+		}
+		if oaiError.Type != "" {
+			return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
+		}
 	}
 
 	if responsesResponse.HasImageGenerationCall() {
@@ -356,10 +463,52 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	functionCallFallbacks := make(map[string]responsesFunctionCallFallback)
 	functionCallFallbackOrder := make([]string, 0, 4)
 	sawOutputTextDelta := false
+	var terminalAPIError *types.NewAPIError
+	pendingClientEvents := make([]responsesPendingClientEvent, 0, 2)
+	sentClientEvent := false
 	uaLower := strings.ToLower(strings.TrimSpace(c.GetHeader("User-Agent")))
 	compatOpenCode := strings.Contains(uaLower, "opencode/") ||
 		strings.Contains(uaLower, "ai-sdk/openai") ||
 		strings.Contains(uaLower, "openai/js")
+
+	sendClientEvent := func(streamResponse dto.ResponsesStreamResponse, data string) {
+		if strings.TrimSpace(data) == "" {
+			return
+		}
+		sendResponsesStreamData(c, streamResponse, data)
+		sentClientEvent = true
+	}
+	flushPendingClientEvents := func() {
+		if len(pendingClientEvents) == 0 {
+			return
+		}
+		for _, event := range pendingClientEvents {
+			sendClientEvent(event.streamResponse, event.data)
+		}
+		pendingClientEvents = pendingClientEvents[:0]
+	}
+	sendOrBufferClientEvent := func(streamResponse dto.ResponsesStreamResponse, data string) {
+		if operation_setting.ResponsesCapacityRetryEnabled &&
+			!sentClientEvent &&
+			!responsesStreamClientBodyWritten(c) &&
+			isResponsesInitialMetadataEvent(streamResponse.Type) {
+			pendingClientEvents = append(pendingClientEvents, responsesPendingClientEvent{
+				streamResponse: streamResponse,
+				data:           data,
+			})
+			return
+		}
+		flushPendingClientEvents()
+		sendClientEvent(streamResponse, data)
+	}
+	sendTopLevelErrorEvent := func(data string) {
+		if strings.TrimSpace(data) == "" {
+			return
+		}
+		flushPendingClientEvents()
+		helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: "error"}, data)
+		sentClientEvent = true
+	}
 
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
 		data = strings.TrimSpace(data)
@@ -421,7 +570,15 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			if streamResponse.Type == "" {
 				if bodyMapOk {
 					if _, ok := bodyMap["error"]; ok {
-						helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: "error"}, dataForClient)
+						if operation_setting.ResponsesCapacityRetryEnabled {
+							if apiErr := buildResponsesCapacityRetryError(streamResponse, bodyMap); apiErr != nil &&
+								canRetryResponsesCapacityStream(c, sentClientEvent) {
+								terminalAPIError = apiErr
+								setResponsesCapacityRetryContext(c, "error", apiErr)
+								return false
+							}
+						}
+						sendTopLevelErrorEvent(dataForClient)
 						if common.GetContextKeyString(c, constant.ContextKeyStreamExitReason) == "" {
 							common.SetContextKey(c, constant.ContextKeyStreamExitReason, "error")
 						}
@@ -433,7 +590,19 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 				return true
 			}
 
-			sendResponsesStreamData(c, streamResponse, dataForClient)
+			if operation_setting.ResponsesCapacityRetryEnabled {
+				switch streamResponse.Type {
+				case "response.failed", "error":
+					if apiErr := buildResponsesCapacityRetryError(streamResponse, bodyMap); apiErr != nil &&
+						canRetryResponsesCapacityStream(c, sentClientEvent) {
+						terminalAPIError = apiErr
+						setResponsesCapacityRetryContext(c, strings.TrimPrefix(streamResponse.Type, "response."), apiErr)
+						return false
+					}
+				}
+			}
+
+			sendOrBufferClientEvent(streamResponse, dataForClient)
 			shouldContinue := true
 			switch streamResponse.Type {
 			case "response.completed":
@@ -580,6 +749,12 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			return false
 		}
 	})
+
+	if terminalAPIError != nil {
+		return nil, terminalAPIError
+	}
+
+	flushPendingClientEvents()
 
 	if streamErr := helper.BuildStreamExitError(c, info); streamErr != nil {
 		return nil, streamErr

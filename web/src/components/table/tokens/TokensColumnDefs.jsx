@@ -37,6 +37,7 @@ import {
   timestamp2string,
   renderGroup,
   renderQuota,
+  renderQuotaToUSD,
   getModelCategories,
   showError,
 } from '../../../helpers';
@@ -378,6 +379,31 @@ const renderQuotaUsage = (text, record, t) => {
   );
 };
 
+const renderQuotaConsumption = (text, record, t) => {
+  const usedQuota = Number(record?.used_quota ?? 0) || 0;
+  const usdText = renderQuotaToUSD(usedQuota, 6);
+  const popoverContent = (
+    <div className='text-xs p-2'>
+      <Typography.Paragraph copyable={{ content: usdText }}>
+        {t('额度消耗($)')}: {usdText}
+      </Typography.Paragraph>
+      <Typography.Paragraph copyable={{ content: renderQuota(usedQuota) }}>
+        {t('已用额度')}: {renderQuota(usedQuota)}
+      </Typography.Paragraph>
+    </div>
+  );
+
+  return (
+    <Popover content={popoverContent} position='top'>
+      {renderOverlayTrigger(
+        <Tag color='white' shape='circle'>
+          {usdText}
+        </Tag>,
+      )}
+    </Popover>
+  );
+};
+
 // Render operations column
 const renderOperations = (
   text,
@@ -520,6 +546,11 @@ export const getTokensColumns = ({
       dataIndex: 'status',
       key: 'status',
       render: (text, record) => renderStatus(text, record, t),
+    },
+    {
+      title: t('额度消耗($)'),
+      key: 'quota_consumption_usd',
+      render: (text, record) => renderQuotaConsumption(text, record, t),
     },
     {
       title: t('额度信息'),

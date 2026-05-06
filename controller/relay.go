@@ -314,6 +314,15 @@ func newRelayRequestBodyReadError(err error) *types.NewAPIError {
 	)
 }
 
+func clearRelayStreamExitState(c *gin.Context) {
+	if c == nil {
+		return
+	}
+	common.SetContextKey(c, constant.ContextKeyStreamExitReason, "")
+	common.SetContextKey(c, constant.ContextKeyStreamExitError, "")
+	common.SetContextKey(c, constant.ContextKeyUpstreamSSEEvent, "")
+}
+
 func clearRelayBillingReservationState(relayInfo *relaycommon.RelayInfo) {
 	if relayInfo == nil {
 		return
@@ -967,6 +976,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		switchBudget:        getChannelSwitchRetryBudget(),
 	}
 	for {
+		clearRelayStreamExitState(c)
 		if relayFormat == types.RelayFormatOpenAIResponses && ws != nil {
 			if currentModel := strings.TrimSpace(common.GetContextKeyString(c, constant.ContextKeyOriginalModel)); currentModel != "" {
 				originalModel = currentModel

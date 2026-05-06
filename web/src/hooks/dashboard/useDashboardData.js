@@ -67,17 +67,16 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [todayUsedQuota, setTodayUsedQuota] = useState(0);
   const [todayStandardUsedQuota, setTodayStandardUsedQuota] = useState(0);
   const [todayUsedTimes, setTodayUsedTimes] = useState(0);
-  const [todayCacheHitTokens, setTodayCacheHitTokens] = useState(0);
-  const [todayPromptTokensTotal, setTodayPromptTokensTotal] = useState(0);
-  const [todayGlobalCacheHitTokens, setTodayGlobalCacheHitTokens] = useState(0);
-  const [todayGlobalPromptTokensTotal, setTodayGlobalPromptTokensTotal] =
-    useState(0);
   const [todayUsedQuotaLoading, setTodayUsedQuotaLoading] = useState(false);
   const [quotaLegacyNotice, setQuotaLegacyNotice] = useState(false);
   const [todayQuotaLegacyNotice, setTodayQuotaLegacyNotice] = useState(false);
   const [pieData, setPieData] = useState([{ type: 'null', value: '0' }]);
   const [lineData, setLineData] = useState([]);
   const [modelColors, setModelColors] = useState({});
+  const [groupLabelMaps, setGroupLabelMaps] = useState({
+    byId: {},
+    byCode: {},
+  });
 
   // ========== 图表状态 ==========
   const [activeChartTab, setActiveChartTab] = useState('1');
@@ -136,20 +135,6 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
     return { avgRPM, avgTPM, timeDiff };
   }, [times, consumeTokens, inputs.start_timestamp, inputs.end_timestamp]);
-
-  const todayCacheHitRate = useMemo(() => {
-    const total = Number(todayPromptTokensTotal) || 0;
-    const hit = Number(todayCacheHitTokens) || 0;
-    if (total <= 0) return null;
-    return hit / total;
-  }, [todayCacheHitTokens, todayPromptTokensTotal]);
-
-  const todayGlobalCacheHitRate = useMemo(() => {
-    const total = Number(todayGlobalPromptTokensTotal) || 0;
-    const hit = Number(todayGlobalCacheHitTokens) || 0;
-    if (total <= 0) return null;
-    return hit / total;
-  }, [todayGlobalCacheHitTokens, todayGlobalPromptTokensTotal]);
 
   // ========== 回调函数 ==========
   const handleInputChange = useCallback((value, name) => {
@@ -239,6 +224,110 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     }
   }, [inputs, dataExportDefaultTime, isAdminUser, now]);
 
+  const loadCacheHitRateByUA = useCallback(async () => {
+    try {
+      const { start_timestamp, end_timestamp, username } = inputs;
+      const localStartTimestamp = Date.parse(start_timestamp) / 1000;
+      const localEndTimestamp = Date.parse(end_timestamp) / 1000;
+      const baseQuery = `start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
+
+      if (isAdminUser) {
+        const query = `username=${encodeURIComponent(username || '')}&${baseQuery}`;
+        const res = await API.get(`/api/log/cache_stat/by_ua?${query}`);
+        const { success, message, data } = res.data;
+        if (success) {
+          return Array.isArray(data) ? data : [];
+        }
+        showError(message);
+        return [];
+      }
+
+      const [globalRes, selfRes] = await Promise.all([
+        API.get(`/api/log/global/cache_stat/by_ua?${baseQuery}`),
+        API.get(`/api/log/self/cache_stat/by_ua?${baseQuery}`),
+      ]);
+
+      const globalPayload = globalRes.data || {};
+      const selfPayload = selfRes.data || {};
+      if (!globalPayload.success) {
+        showError(globalPayload.message);
+      }
+      if (!selfPayload.success) {
+        showError(selfPayload.message);
+      }
+
+      return {
+        global:
+          globalPayload.success && Array.isArray(globalPayload.data)
+            ? globalPayload.data
+            : [],
+        self:
+          selfPayload.success && Array.isArray(selfPayload.data)
+            ? selfPayload.data
+            : [],
+      };
+    } catch (error) {
+      showError(t('请求失败'));
+      return isAdminUser ? [] : { global: [], self: [] };
+    }
+  }, [inputs, isAdminUser, t]);
+
+  const loadTokenQuotaData = useCallback(async () => {
+    try {
+      const { start_timestamp, end_timestamp, username } = inputs;
+      const localStartTimestamp = Date.parse(start_timestamp) / 1000;
+      const localEndTimestamp = Date.parse(end_timestamp) / 1000;
+      const baseQuery = `start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
+      const url = isAdminUser
+        ? `/api/log/token_quota_stat?username=${encodeURIComponent(username || '')}&${baseQuery}`
+        : `/api/log/self/token_quota_stat?${baseQuery}`;
+
+      const res = await API.get(url);
+      const { success, message, data } = res.data;
+      if (success) {
+        return Array.isArray(data) ? data : [];
+      }
+      showError(message);
+    } catch (error) {
+      showError(t('请求失败'));
+    }
+    return [];
+  }, [inputs, isAdminUser, t]);
+
+  const loadGroupLabels = useCallback(async () => {
+    try {
+      const res = await API.get('/api/group/resolve');
+      const { success, message, data } = res.data || {};
+      if (!success) {
+        showError(message || t('获取分组失败'));
+        return;
+      }
+      const byId = {};
+      const byCode = {};
+      (Array.isArray(data) ? data : []).forEach((g) => {
+        const idRaw = Number(g?.id ?? 0);
+        const id = Number.isFinite(idRaw) ? Math.floor(idRaw) : 0;
+        const code = String(g?.code || '').trim();
+        const label = String(g?.display_name || code).trim();
+        if (!label) {
+          return;
+        }
+        if (id > 0) {
+          byId[id] = label;
+        }
+        if (code) {
+          byCode[code] = label;
+        }
+      });
+      const maps = { byId, byCode };
+      setGroupLabelMaps(maps);
+      return maps;
+    } catch (error) {
+      showError(error?.message || t('获取分组失败'));
+    }
+    return { byId: {}, byCode: {} };
+  }, [t]);
+
   const loadUptimeData = useCallback(async () => {
     setUptimeLoading(true);
     try {
@@ -274,76 +363,21 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         setTodayStandardUsedQuota(todayStandardQuota);
         setTodayUsedTimes(data?.count ?? 0);
         setTodayQuotaLegacyNotice(Boolean(data?.quota_legacy));
-        try {
-          const cacheUrl = `/api/log/self/cache_stat?start_timestamp=${startTimestamp}&end_timestamp=${endTimestamp}`;
-          const cacheRes = await API.get(cacheUrl);
-          const {
-            success: cacheSuccess,
-            message: cacheMessage,
-            data: cacheData,
-          } = cacheRes.data;
-          if (cacheSuccess) {
-            setTodayCacheHitTokens(cacheData?.cache_hit_tokens ?? 0);
-            setTodayPromptTokensTotal(cacheData?.prompt_tokens_total ?? 0);
-          } else {
-            setTodayCacheHitTokens(0);
-            setTodayPromptTokensTotal(0);
-            showError(cacheMessage);
-          }
-        } catch (error) {
-          setTodayCacheHitTokens(0);
-          setTodayPromptTokensTotal(0);
-          showError(t('请求失败'));
-        }
-
-        try {
-          const globalCacheUrl = isAdminUser
-            ? `/api/log/cache_stat?start_timestamp=${startTimestamp}&end_timestamp=${endTimestamp}`
-            : `/api/log/global/cache_stat?start_timestamp=${startTimestamp}&end_timestamp=${endTimestamp}`;
-          const globalCacheRes = await API.get(globalCacheUrl);
-          const {
-            success: globalSuccess,
-            message: globalMessage,
-            data: globalData,
-          } = globalCacheRes.data;
-          if (globalSuccess) {
-            setTodayGlobalCacheHitTokens(globalData?.cache_hit_tokens ?? 0);
-            setTodayGlobalPromptTokensTotal(
-              globalData?.prompt_tokens_total ?? 0,
-            );
-          } else {
-            setTodayGlobalCacheHitTokens(0);
-            setTodayGlobalPromptTokensTotal(0);
-            showError(globalMessage);
-          }
-        } catch (error) {
-          setTodayGlobalCacheHitTokens(0);
-          setTodayGlobalPromptTokensTotal(0);
-          showError(t('请求失败'));
-        }
       } else {
         setTodayUsedQuota(0);
         setTodayStandardUsedQuota(0);
-        setTodayCacheHitTokens(0);
-        setTodayPromptTokensTotal(0);
-        setTodayGlobalCacheHitTokens(0);
-        setTodayGlobalPromptTokensTotal(0);
         setTodayQuotaLegacyNotice(false);
         showError(message);
       }
     } catch (error) {
       setTodayUsedQuota(0);
       setTodayStandardUsedQuota(0);
-      setTodayCacheHitTokens(0);
-      setTodayPromptTokensTotal(0);
-      setTodayGlobalCacheHitTokens(0);
-      setTodayGlobalPromptTokensTotal(0);
       setTodayQuotaLegacyNotice(false);
       showError(t('请求失败'));
     } finally {
       setTodayUsedQuotaLoading(false);
     }
-  }, [isAdminUser, t]);
+  }, [t]);
 
   const getUserData = useCallback(async () => {
     let res = await API.get(`/api/user/self`);
@@ -368,6 +402,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         updateChartDataCallback(data);
       }
       setSearchModalVisible(false);
+      return data;
     },
     [refresh],
   );
@@ -375,9 +410,10 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   useEffect(() => {
     if (!initialized.current) {
       getUserData();
+      loadGroupLabels();
       initialized.current = true;
     }
-  }, [getUserData]);
+  }, [getUserData, loadGroupLabels]);
 
   return {
     // 基础状态
@@ -400,8 +436,6 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     todayUsedQuota,
     todayStandardUsedQuota,
     todayUsedTimes,
-    todayCacheHitRate,
-    todayGlobalCacheHitRate,
     todayUsedQuotaLoading,
     pieData,
     setPieData,
@@ -409,6 +443,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     setLineData,
     modelColors,
     setModelColors,
+    groupLabelMaps,
 
     // 图表状态
     activeChartTab,
@@ -427,10 +462,6 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     // 计算值
     timeOptions,
     performanceMetrics,
-    todayCacheHitTokens,
-    todayPromptTokensTotal,
-    todayGlobalCacheHitTokens,
-    todayGlobalPromptTokensTotal,
     isAdminUser,
     quotaLegacyNotice,
     todayQuotaLegacyNotice,
@@ -446,6 +477,9 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     showSearchModal,
     handleCloseModal,
     loadQuotaData,
+    loadCacheHitRateByUA,
+    loadTokenQuotaData,
+    loadGroupLabels,
     loadUptimeData,
     loadTodayUsedQuota,
     getUserData,

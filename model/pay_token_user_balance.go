@@ -2,11 +2,14 @@ package model
 
 import (
 	"errors"
+	"one-api/common"
+	relaycommon "one-api/relay/common"
 	"strings"
 	"unicode/utf8"
 
 	"one-api/setting/payg_setting"
 
+	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
 )
 
@@ -56,6 +59,52 @@ func ResolvePayTokenBalanceAllowedGroups(b PayTokenUserBalance) ([]string, error
 		return nil, errors.New("按token付费可用分组为空")
 	}
 	return normalized, nil
+}
+
+func buildPayTokenConsumableAllocationsFromBalances(balances []PayTokenUserBalance, groupID int, requiredTokens int) ([]relaycommon.ProductQuotaAllocation, bool, error) {
+	if groupID <= 0 {
+		return nil, false, errors.New("group_id 无效")
+	}
+	if requiredTokens <= 0 {
+		requiredTokens = 1
+	}
+	left := requiredTokens
+	allocations := make([]relaycommon.ProductQuotaAllocation, 0, len(balances))
+	for _, balance := range balances {
+		if balance.RemainingTokens <= 0 {
+			continue
+		}
+		ids, err := resolvePayTokenBalanceAllowedGroupIDs(balance)
+		if err != nil {
+			return nil, false, err
+		}
+		allowed := false
+		for _, gid := range ids {
+			if gid == groupID {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			continue
+		}
+		useTokens := balance.RemainingTokens
+		if useTokens > left {
+			useTokens = left
+		}
+		if useTokens <= 0 {
+			continue
+		}
+		allocations = append(allocations, relaycommon.ProductQuotaAllocation{
+			ProductId: balance.ProductId,
+			Quota:     useTokens,
+		})
+		left -= useTokens
+		if left <= 0 {
+			return allocations, true, nil
+		}
+	}
+	return allocations, false, nil
 }
 
 // PayTokenUserBalance stores a user's prepaid-token balance per product.
@@ -268,21 +317,14 @@ func FindUserPayTokenConsumableProductIdTx(tx *gorm.DB, userId int, groupID int,
 		Find(&balances).Error; err != nil {
 		return 0, false, err
 	}
-	for _, b := range balances {
-		if b.RemainingTokens < requiredTokens {
-			continue
-		}
-		ids, err := resolvePayTokenBalanceAllowedGroupIDs(b)
-		if err != nil {
-			return 0, false, err
-		}
-		for _, gid := range ids {
-			if gid == groupID {
-				return b.ProductId, true, nil
-			}
-		}
+	allocations, ok, err := buildPayTokenConsumableAllocationsFromBalances(balances, groupID, requiredTokens)
+	if err != nil {
+		return 0, false, err
 	}
-	return 0, false, nil
+	if !ok || len(allocations) == 0 {
+		return 0, false, nil
+	}
+	return allocations[0].ProductId, true, nil
 }
 
 func GetUserPayTokenBalanceInfoTx(tx *gorm.DB, userId int) (totalRemaining int, allowedGroupIDs []int, err error) {
@@ -329,4 +371,166 @@ func GetUserPayTokenBalanceInfoTx(tx *gorm.DB, userId int) (totalRemaining int, 
 		return total, nil, nil
 	}
 	return total, unionIDs, nil
+}
+
+func consumeUserPayTokenQuotaWithAllocations(userId int, groupID int, tokens int) ([]relaycommon.ProductQuotaAllocation, error) {
+	if userId <= 0 {
+		return nil, errors.New("userId 无效")
+	}
+	if groupID <= 0 {
+		return nil, errors.New("group_id 无效")
+	}
+	if tokens <= 0 {
+		return nil, errors.New("tokens 无效")
+	}
+
+	var allocations []relaycommon.ProductQuotaAllocation
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := lockForUpdate(tx).
+			Select("id", "pay_token_quota", "pay_token_history_quota", "pay_token_allowed_groups").
+			Where("id = ?", userId).
+			First(&user).Error; err != nil {
+			return err
+		}
+		if _, err := syncLockedUserPayTokenSnapshotFromBalancesTx(tx, &user); err != nil {
+			return err
+		}
+		if user.PayTokenQuota < tokens {
+			return errors.New("按token付费余额不足")
+		}
+
+		var balances []PayTokenUserBalance
+		if err := lockForUpdate(tx).
+			Select("id", "product_id", "allowed_group_ids", "allowed_groups", "remaining_tokens", "sort_order").
+			Where("user_id = ? AND remaining_tokens > 0", userId).
+			Order("sort_order DESC, product_id DESC, id DESC").
+			Find(&balances).Error; err != nil {
+			return err
+		}
+		if len(balances) == 0 {
+			return errors.New("按token付费余额不足")
+		}
+
+		resolvedAllocations, ok, err := buildPayTokenConsumableAllocationsFromBalances(balances, groupID, tokens)
+		if err != nil {
+			return err
+		}
+		if !ok || len(resolvedAllocations) == 0 {
+			return errors.New("按token付费余额不足")
+		}
+
+		indexByProductID := make(map[int]int, len(balances))
+		for i := range balances {
+			indexByProductID[balances[i].ProductId] = i
+		}
+		for _, allocation := range resolvedAllocations {
+			idx, ok := indexByProductID[allocation.ProductId]
+			if !ok {
+				return errors.New("按token付费商品余额不存在")
+			}
+			if balances[idx].RemainingTokens < allocation.Quota {
+				return errors.New("按token付费余额不足")
+			}
+			if err := tx.Model(&PayTokenUserBalance{}).
+				Where("id = ?", balances[idx].Id).
+				Update("remaining_tokens", gorm.Expr("remaining_tokens - ?", allocation.Quota)).Error; err != nil {
+				return err
+			}
+			balances[idx].RemainingTokens -= allocation.Quota
+		}
+
+		if _, err := syncLockedUserPayTokenSnapshotFromBalancesTx(tx, &user); err != nil {
+			return err
+		}
+		allocations = cloneProductQuotaAllocations(resolvedAllocations)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return allocations, nil
+}
+
+func DecreaseUserPayTokenQuotaWithAllocations(userId int, groupID int, tokens int) ([]relaycommon.ProductQuotaAllocation, error) {
+	allocations, err := consumeUserPayTokenQuotaWithAllocations(userId, groupID, tokens)
+	if err != nil {
+		return nil, err
+	}
+	gopool.Go(func() {
+		if err := cacheDecrUserPayTokenQuota(userId, int64(tokens)); err != nil {
+			common.SysLog("failed to decrease user pay-token quota: " + err.Error())
+		}
+	})
+	if err := invalidateUserCache(userId); err != nil {
+		common.SysLog("failed to invalidate user cache: " + err.Error())
+	}
+	return allocations, nil
+}
+
+func restoreUserPayTokenQuotaWithAllocations(userId int, allocations []relaycommon.ProductQuotaAllocation) (int, error) {
+	normalizedAllocations := cloneProductQuotaAllocations(allocations)
+	if userId <= 0 {
+		return 0, errors.New("userId 无效")
+	}
+	if len(normalizedAllocations) == 0 {
+		return 0, errors.New("按token付费商品未指定，无法返还tokens")
+	}
+
+	totalTokens := 0
+	for _, allocation := range normalizedAllocations {
+		totalTokens += allocation.Quota
+	}
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := lockForUpdate(tx).
+			Select("id", "pay_token_quota", "pay_token_history_quota", "pay_token_allowed_groups").
+			Where("id = ?", userId).
+			First(&user).Error; err != nil {
+			return err
+		}
+
+		for _, allocation := range normalizedAllocations {
+			var balance PayTokenUserBalance
+			if err := lockForUpdate(tx).
+				Where("user_id = ? AND product_id = ?", userId, allocation.ProductId).
+				First(&balance).Error; err != nil {
+				return err
+			}
+			if balance.RemainingTokens < 0 {
+				return errors.New("remaining_tokens 状态错误")
+			}
+			if err := tx.Model(&PayTokenUserBalance{}).
+				Where("id = ?", balance.Id).
+				Update("remaining_tokens", gorm.Expr("remaining_tokens + ?", allocation.Quota)).Error; err != nil {
+				return err
+			}
+		}
+
+		_, err := syncLockedUserPayTokenSnapshotFromBalancesTx(tx, &user)
+		return err
+	})
+	if err != nil {
+		return 0, err
+	}
+	return totalTokens, nil
+}
+
+func ReturnUserPayTokenQuotaWithAllocations(userId int, allocations []relaycommon.ProductQuotaAllocation) error {
+	restored, err := restoreUserPayTokenQuotaWithAllocations(userId, allocations)
+	if err != nil {
+		return err
+	}
+	if restored > 0 {
+		gopool.Go(func() {
+			if err := cacheIncrUserPayTokenQuota(userId, int64(restored)); err != nil {
+				common.SysLog("failed to restore user pay-token quota: " + err.Error())
+			}
+		})
+	}
+	if err := invalidateUserCache(userId); err != nil {
+		common.SysLog("failed to invalidate user cache: " + err.Error())
+	}
+	return nil
 }

@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
+import { selectFilter } from '../../../helpers';
 
 const LogsFilters = ({
   formInitValues,
@@ -30,6 +31,8 @@ const LogsFilters = ({
   setLogType,
   loading,
   isAdminUser,
+  groupFilterOptions,
+  tokenFilterOptions,
   t,
 }) => {
   return (
@@ -44,10 +47,18 @@ const LogsFilters = ({
       stopValidateWithError={false}
     >
       <div className='flex flex-col gap-2'>
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2'>
+        <div
+          className={
+            isAdminUser
+              ? 'grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-4'
+              : 'flex w-full flex-nowrap items-center gap-2 overflow-x-auto'
+          }
+        >
           {/* 时间选择器 */}
-          <div className='col-span-1 lg:col-span-2'>
-            <div className='flex flex-col gap-2 md:flex-row'>
+          <div
+            className={isAdminUser ? 'col-span-1 lg:col-span-2' : 'shrink-0'}
+          >
+            <div className='flex flex-row gap-2'>
               <Form.DatePicker
                 field='start_timestamp'
                 type='dateTime'
@@ -55,7 +66,7 @@ const LogsFilters = ({
                 showClear
                 pure
                 size='small'
-                className='w-full md:w-[190px]'
+                className={isAdminUser ? 'w-full md:w-[190px]' : 'w-[180px]'}
               />
               <Form.DatePicker
                 field='end_timestamp'
@@ -64,47 +75,77 @@ const LogsFilters = ({
                 showClear
                 pure
                 size='small'
-                className='w-full md:w-[190px]'
+                className={isAdminUser ? 'w-full md:w-[190px]' : 'w-[180px]'}
               />
             </div>
           </div>
 
           {/* 其他搜索字段 */}
-          <Form.Input
-            field='token_name'
-            prefix={<IconSearch />}
-            placeholder={t('令牌名称')}
-            showClear
-            pure
-            size='small'
-          />
+          {isAdminUser ? (
+            <Form.Input
+              field='token_name'
+              prefix={<IconSearch />}
+              placeholder={t('令牌名称')}
+              showClear
+              pure
+              size='small'
+            />
+          ) : (
+            <Form.Select
+              field='token_name'
+              placeholder={t('令牌名称')}
+              optionList={tokenFilterOptions}
+              className='min-w-[150px] flex-1'
+              showClear
+              pure
+              filter={selectFilter}
+              searchable
+              size='small'
+            />
+          )}
 
           <Form.Input
             field='model_name'
             prefix={<IconSearch />}
             placeholder={t('模型名称')}
+            className={isAdminUser ? undefined : 'min-w-[170px] flex-1'}
             showClear
             pure
             size='small'
           />
 
-          <Form.Input
-            field='request_id'
-            prefix={<IconSearch />}
-            placeholder={t('request_id')}
-            showClear
-            pure
-            size='small'
-          />
+          {!isAdminUser && (
+            <Form.Select
+              field='group_id'
+              placeholder={t('模型分组')}
+              optionList={groupFilterOptions}
+              className='min-w-[150px] flex-1'
+              showClear
+              pure
+              filter={selectFilter}
+              searchable
+              size='small'
+            />
+          )}
 
           {isAdminUser && (
             <>
               <Form.Input
-                field='group_id'
+                field='request_id'
                 prefix={<IconSearch />}
-                placeholder={t('分组 ID')}
+                placeholder={t('request_id')}
                 showClear
                 pure
+                size='small'
+              />
+              <Form.Select
+                field='group_id'
+                placeholder={t('模型分组')}
+                optionList={groupFilterOptions}
+                showClear
+                pure
+                filter={selectFilter}
+                searchable
                 size='small'
               />
               <Form.Input

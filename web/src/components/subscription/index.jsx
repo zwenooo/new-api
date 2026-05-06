@@ -38,25 +38,20 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   Button,
   Card,
+  Empty,
   InputNumber,
   Modal,
   Radio,
   Spin,
-  Table,
   Typography,
 } from '@douyinfe/semi-ui';
 import { QRCodeSVG } from 'qrcode.react';
 import { LayoutGrid, List } from 'lucide-react';
 import ConsolePage from '../layout/ConsolePage';
 import { UserContext } from '../../context/User';
+import GroupRatioPill from '../common/ui/GroupRatioPill';
 
 const { Text, Title } = Typography;
-
-const formatRatio = (ratioValue) => {
-  const ratio = Number(ratioValue);
-  if (!Number.isFinite(ratio)) return '1';
-  return ratio.toFixed(6).replace(/\.?0+$/, '');
-};
 
 const normalizeGroupIds = (rawIds) => {
   if (!Array.isArray(rawIds)) return [];
@@ -134,7 +129,8 @@ const normalizePaygProducts = (rawProducts) => {
     if (!name) return;
 
     const description = String(item?.description ?? '').trim();
-    const enabled = item?.enabled !== false;
+    const archived = item?.archived === true;
+    const enabled = archived ? false : item?.enabled !== false;
 
     const sortOrderRaw = Number(item?.sort_order ?? 0);
     const sortOrder = Number.isFinite(sortOrderRaw)
@@ -153,6 +149,7 @@ const normalizePaygProducts = (rawProducts) => {
       name,
       description,
       enabled,
+      archived,
       sort_order: sortOrder,
       stock,
       allowed_group_ids: allowedGroupIds,
@@ -174,7 +171,8 @@ const normalizePayRequestProducts = (rawProducts) => {
     if (!name) return;
 
     const description = String(item?.description ?? '').trim();
-    const enabled = item?.enabled !== false;
+    const archived = item?.archived === true;
+    const enabled = archived ? false : item?.enabled !== false;
 
     const sortOrderRaw = Number(item?.sort_order ?? 0);
     const sortOrder = Number.isFinite(sortOrderRaw)
@@ -193,6 +191,7 @@ const normalizePayRequestProducts = (rawProducts) => {
       name,
       description,
       enabled,
+      archived,
       sort_order: sortOrder,
       stock,
       allowed_group_ids: allowedGroupIds,
@@ -214,7 +213,8 @@ const normalizePayTokenProducts = (rawProducts) => {
     if (!name) return;
 
     const description = String(item?.description ?? '').trim();
-    const enabled = item?.enabled !== false;
+    const archived = item?.archived === true;
+    const enabled = archived ? false : item?.enabled !== false;
 
     const sortOrderRaw = Number(item?.sort_order ?? 0);
     const sortOrder = Number.isFinite(sortOrderRaw)
@@ -233,6 +233,7 @@ const normalizePayTokenProducts = (rawProducts) => {
       name,
       description,
       enabled,
+      archived,
       sort_order: sortOrder,
       stock,
       allowed_group_ids: allowedGroupIds,
@@ -609,7 +610,9 @@ const Subscription = () => {
     if (!subscriptionStoreNoticeIsHtml) return '';
     const trimmed = String(subscriptionStoreNotice || '').trim();
     if (!trimmed) return '';
-    const pricingLinkHtml = `<a href="/console/pricing" class="text-white underline decoration-white underline-offset-2 hover:opacity-90">${escapeHtmlText(t('模型广场'))}</a>`;
+    const pricingLinkHtml = `<a href="/console/pricing" class="text-white underline decoration-white underline-offset-2 hover:opacity-90">${escapeHtmlText(
+      t('模型广场'),
+    )}</a>`;
     const replaced = trimmed.split('{{pricing}}').join(pricingLinkHtml);
     return sanitizeSubscriptionStoreNoticeHtml(replaced);
   }, [subscriptionStoreNotice, subscriptionStoreNoticeIsHtml, t]);
@@ -796,7 +799,7 @@ const Subscription = () => {
     }
     setOrderingPlan(plan || null);
     setOrderQuantity(1);
-    setApplyMode(plan?.multi_quantity_defer_only !== false ? 'defer' : 'stack');
+    setApplyMode('stack');
     setEpayCheckout(null);
     payInitRef.current = false;
     setEpayPayStatus('pending');
@@ -807,7 +810,11 @@ const Subscription = () => {
       return;
     }
 
-    if (epayEnabled && epayMethods.length > 0) {
+    const priceFen = Number(plan?.price_fen || 0);
+    if (Number.isFinite(priceFen) && priceFen <= 0) {
+      setPayMethod('balance');
+      setEpayMethod('');
+    } else if (epayEnabled && epayMethods.length > 0) {
       setPayMethod('epay');
       setEpayMethod(getDefaultEpayMethod(epayMethods));
     } else {
@@ -828,7 +835,11 @@ const Subscription = () => {
       return;
     }
 
-    if (epayEnabled && epayMethods.length > 0) {
+    const priceFen = Number(orderingPlan?.price_fen || 0);
+    if (Number.isFinite(priceFen) && priceFen <= 0) {
+      setPayMethod('balance');
+      setEpayMethod('');
+    } else if (epayEnabled && epayMethods.length > 0) {
       setPayMethod('epay');
       setEpayMethod(getDefaultEpayMethod(epayMethods));
     } else {
@@ -843,6 +854,7 @@ const Subscription = () => {
     payConfigLoading,
     epayEnabled,
     epayMethods,
+    orderingPlan?.price_fen,
   ]);
 
   const buildEpayPayLink = (url, params) => {
@@ -1244,11 +1256,6 @@ const Subscription = () => {
       showError(t('请选择叠加或顺延'));
       return;
     }
-    const multiDeferOnly = orderingPlan?.multi_quantity_defer_only !== false;
-    if (multiDeferOnly && applyMode !== 'defer') {
-      showError(t('仅支持顺延'));
-      return;
-    }
     if (payMethod !== 'epay' && payMethod !== 'balance') {
       showError(t('请选择支付方式'));
       return;
@@ -1321,7 +1328,6 @@ const Subscription = () => {
   const planList = Array.isArray(plans) ? plans : [];
   const maxOrderQuantity = useMemo(() => {
     if (!orderingPlan) return 1;
-    if (!orderingPlan?.multi_quantity_enabled) return 1;
     const purchaseLimit = Number(orderingPlan?.purchase_limit || 0);
     const purchasedCount = Number(orderingPlan?.purchased_count || 0);
     let max = 100;
@@ -1411,13 +1417,6 @@ const Subscription = () => {
                       </div>
                     ) : null}
                     <div className='mt-1 space-y-0.5 text-xs text-gray-500 leading-tight'>
-                      <div>
-                        {payRequestCreditRequestsPerCny > 0
-                          ? t('¥1 = {{rate}} 次', {
-                              rate: payRequestCreditRequestsPerCny,
-                            })
-                          : t('按次付费兑换比例未配置')}
-                      </div>
                       {(() => {
                         const stock = normalizeStockValue(product.stock);
                         if (stock === null) {
@@ -1452,13 +1451,11 @@ const Subscription = () => {
                             {getVisibleOptionalGroupIds(
                               product.allowed_group_ids,
                             ).map((gid) => (
-                              <Text
+                              <GroupRatioPill
                                 key={`${product.id}-${gid}`}
-                                code
-                                style={{ fontSize: 12 }}
-                              >
-                                {`${getGroupLabel(gid)} * ${formatRatio(groupRatios?.[gid])}`}
-                              </Text>
+                                label={getGroupLabel(gid)}
+                                ratio={groupRatios?.[gid]}
+                              />
                             ))}
                           </span>
                         </div>
@@ -1505,13 +1502,6 @@ const Subscription = () => {
                       </div>
                     ) : null}
                     <div className='mt-1 space-y-0.5 text-xs text-gray-500 leading-tight'>
-                      <div>
-                        {payTokenCreditTokensPerCny > 0
-                          ? t('¥1 = {{rate}} tokens', {
-                              rate: payTokenCreditTokensPerCny,
-                            })
-                          : t('按token付费兑换比例未配置')}
-                      </div>
                       {(() => {
                         const stock = normalizeStockValue(product.stock);
                         if (stock === null) {
@@ -1546,13 +1536,11 @@ const Subscription = () => {
                             {getVisibleOptionalGroupIds(
                               product.allowed_group_ids,
                             ).map((gid) => (
-                              <Text
+                              <GroupRatioPill
                                 key={`${product.id}-${gid}`}
-                                code
-                                style={{ fontSize: 12 }}
-                              >
-                                {`${getGroupLabel(gid)} * ${formatRatio(groupRatios?.[gid])}`}
-                              </Text>
+                                label={getGroupLabel(gid)}
+                                ratio={groupRatios?.[gid]}
+                              />
                             ))}
                           </span>
                         </div>
@@ -1630,13 +1618,11 @@ const Subscription = () => {
                       {getVisibleOptionalGroupIds(
                         product.allowed_group_ids,
                       ).map((gid) => (
-                        <Text
+                        <GroupRatioPill
                           key={`${product.id}-${gid}`}
-                          code
-                          style={{ fontSize: 12 }}
-                        >
-                          {`${getGroupLabel(gid)} * ${formatRatio(groupRatios?.[gid])}`}
-                        </Text>
+                          label={getGroupLabel(gid)}
+                          ratio={groupRatios?.[gid]}
+                        />
                       ))}
                     </span>
                   </div>
@@ -1722,7 +1708,9 @@ const Subscription = () => {
                                       {`${getGroupLabel(item.group_id)}: ${
                                         item.daily_quota_limit <= 0
                                           ? t('无限')
-                                          : `${item.daily_quota_limit || 0} tokens`
+                                          : `${
+                                              item.daily_quota_limit || 0
+                                            } tokens`
                                       }`}
                                     </Text>
                                   ))}
@@ -1735,7 +1723,9 @@ const Subscription = () => {
                               {t('日限')}{' '}
                               {Number(plan.daily_quota_limit) <= 0
                                 ? t('无限')
-                                : `${Number(plan.daily_quota_limit) || 0} tokens`}
+                                : `${
+                                    Number(plan.daily_quota_limit) || 0
+                                  } tokens`}
                             </div>
                           );
                         })()}
@@ -1854,9 +1844,11 @@ const Subscription = () => {
                           {t('可选分组')}：
                           <span className='inline-flex flex-wrap gap-1'>
                             {visibleGroupIds.map((gid) => (
-                              <Text key={gid} code style={{ fontSize: 12 }}>
-                                {`${getGroupLabel(gid)} * ${formatRatio(groupRatios?.[gid])}`}
-                              </Text>
+                              <GroupRatioPill
+                                key={gid}
+                                label={getGroupLabel(gid)}
+                                ratio={groupRatios?.[gid]}
+                              />
                             ))}
                           </span>
                         </div>
@@ -1872,8 +1864,8 @@ const Subscription = () => {
                     {mode === 'request'
                       ? t('次数订阅')
                       : mode === 'tokens'
-                        ? t('Tokens订阅')
-                        : t('订阅额度')}
+                      ? t('Tokens订阅')
+                      : t('订阅额度')}
                   </div>
                 </div>
               </div>
@@ -1893,10 +1885,9 @@ const Subscription = () => {
                 {isOutOfStock(plan.stock)
                   ? t('售罄')
                   : Number(plan.purchase_limit) > 0 &&
-                      Number(plan.purchased_count) >=
-                        Number(plan.purchase_limit)
-                    ? t('已达限购')
-                    : t('购买')}
+                    Number(plan.purchased_count) >= Number(plan.purchase_limit)
+                  ? t('已达限购')
+                  : t('购买')}
               </Button>
             </div>
           </Card>
@@ -1934,313 +1925,309 @@ const Subscription = () => {
     planList,
   ]);
 
-  const combinedListColumns = useMemo(
-    () => [
-      {
-        title: t('类型'),
-        dataIndex: '_type',
-        key: '_type',
-        width: 90,
-        render: (type, record) => {
-          if (type === 'pay_request') {
-            return <Text type='success'>{t('按次付费')}</Text>;
-          }
-          if (type === 'pay_token') {
-            return <Text type='success'>{t('按token付费')}</Text>;
-          }
-          if (type === 'payg') {
-            return <Text type='success'>{t('按量付费')}</Text>;
-          }
-          const mode = inferPresetMode(record);
-          if (mode === 'request') return t('次数订阅');
-          if (mode === 'tokens') return t('Tokens订阅');
-          return t('订阅额度');
-        },
-      },
-      {
-        title: t('名称'),
-        dataIndex: 'name',
-        key: 'name',
-        render: (text, record) => (
-          <div>
-            <div className='font-medium'>
-              {text ||
-                (record._type === 'payg'
-                  ? t('按量付费')
-                  : record._type === 'pay_request'
-                    ? t('按次付费')
-                    : record._type === 'pay_token'
-                      ? t('按token付费')
-                      : '-')}
-            </div>
-            {record.description && (
-              <div className='text-xs text-gray-500 mt-0.5'>
-                {record.description}
-              </div>
-            )}
-          </div>
-        ),
-      },
-      {
-        title: t('额度/次数'),
-        dataIndex: 'quota',
-        key: 'quota',
-        width: 100,
-        render: (_, record) => {
-          if (record._type === 'payg') return '-';
-          if (record._type === 'pay_request') return '-';
-          if (record._type === 'pay_token') return '-';
-          const mode = inferPresetMode(record);
-          if (mode === 'request') {
-            const total = Number(record.quota) || 0;
-            const totalLabel = total === 0 ? t('无限') : total;
-            return `${totalLabel} ${t('次')}`;
-          }
-          if (mode === 'tokens') {
-            const quota = Number(record.quota) || 0;
-            return quota === 0 ? t('无限') : `${quota} tokens`;
-          }
-          const quota = Number(record.quota) || 0;
-          return quota === 0 ? t('无限') : renderQuotaToUSD(quota, 2);
-        },
-      },
-      {
-        title: t('日限'),
-        dataIndex: 'daily_quota_limit',
-        key: 'daily_quota_limit',
-        render: (_, record) => {
-          if (
-            record._type === 'payg' ||
-            record._type === 'pay_request' ||
-            record._type === 'pay_token'
-          )
-            return '-';
-          const mode = inferPresetMode(record);
-          if (mode === 'request') {
-            const daily = Number(record.daily_request_limit) || 0;
-            return daily === 0 ? t('无限') : `${daily} ${t('次/天')}`;
-          }
-          if (mode === 'tokens') {
-            const groupDailyLimits = normalizeGroupDailyLimits(
-              record.group_daily_limits,
-            );
-            if (groupDailyLimits.length > 0) {
-              return (
-                <div className='flex items-center gap-1 flex-wrap'>
-                  {groupDailyLimits.map((item) => (
-                    <Text
-                      key={`list-${record.id}-${item.group_id}`}
-                      code
-                      style={{ fontSize: 11, whiteSpace: 'nowrap' }}
-                    >
-                      {`${getGroupLabel(item.group_id)}: ${item.daily_quota_limit <= 0 ? t('无限') : `${item.daily_quota_limit || 0} tokens`}`}
-                    </Text>
-                  ))}
-                </div>
-              );
-            }
-            const limit = Number(record.daily_quota_limit) || 0;
-            return limit <= 0 ? t('无限') : `${limit} tokens`;
-          }
-          const groupDailyLimits = normalizeGroupDailyLimits(
-            record.group_daily_limits,
-          );
-          if (groupDailyLimits.length > 0) {
-            return (
-              <div className='flex items-center gap-1 flex-wrap'>
-                {groupDailyLimits.map((item) => (
-                  <Text
-                    key={`list-${record.id}-${item.group_id}`}
-                    code
-                    style={{ fontSize: 11, whiteSpace: 'nowrap' }}
-                  >
-                    {`${getGroupLabel(item.group_id)}: ${item.daily_quota_limit <= 0 ? t('无限') : renderQuotaToUSD(item.daily_quota_limit || 0, 2)}`}
-                  </Text>
-                ))}
-              </div>
-            );
-          }
-          return Number(record.daily_quota_limit) <= 0
-            ? t('无限')
-            : renderQuotaToUSD(record.daily_quota_limit || 0, 2);
-        },
-      },
-      {
-        title: t('时长'),
-        dataIndex: 'quota_valid_days',
-        key: 'quota_valid_days',
-        width: 70,
-        render: (text, record) => {
-          if (
-            record._type === 'payg' ||
-            record._type === 'pay_request' ||
-            record._type === 'pay_token'
-          )
-            return '-';
-          const days = Number(text) || 0;
-          return days === 0 ? t('无限') : `${days} ${t('天')}`;
-        },
-      },
-      {
-        title: t('库存'),
-        dataIndex: 'stock',
-        key: 'stock',
-        width: 70,
-        render: (text) => {
-          const stock = normalizeStockValue(text);
-          if (stock === null) return t('无限');
-          if (stock === 0) return <Text type='danger'>{t('售罄')}</Text>;
-          if (typeof stock === 'number') return stock;
-          return '-';
-        },
-      },
-      {
-        title: t('可选分组'),
-        dataIndex: 'allowed_group_ids',
-        key: 'allowed_group_ids',
-        render: (_, record) => {
-          const groupIds = normalizeGroupIds(record.allowed_group_ids);
-          const visibleGroupIds = getVisibleOptionalGroupIds(
-            record.allowed_group_ids,
-          );
-          if (groupIds.length === 0) {
-            return record._type === 'payg' ||
-              record._type === 'pay_request' ||
-              record._type === 'pay_token' ? (
-              '-'
-            ) : (
-              <Text type='danger' style={{ fontSize: 12 }}>
-                {t('未配置')}
-              </Text>
-            );
-          }
-          if (visibleGroupIds.length === 0) {
-            return '-';
-          }
-          return (
-            <div className='flex items-center gap-1 flex-wrap'>
-              {visibleGroupIds.map((gid) => (
-                <Text
-                  key={`list-group-${record._key}-${gid}`}
-                  code
-                  style={{ fontSize: 11, whiteSpace: 'nowrap' }}
-                >
-                  {`${getGroupLabel(gid)} * ${formatRatio(groupRatios?.[gid])}`}
-                </Text>
-              ))}
-            </div>
-          );
-        },
-      },
-      {
-        title: t('价格'),
-        dataIndex: 'price_fen',
-        key: 'price_fen',
-        width: 80,
-        render: (text, record) => {
-          if (
-            record._type === 'payg' ||
-            record._type === 'pay_request' ||
-            record._type === 'pay_token'
-          )
-            return '-';
-          return (
-            <span className='font-semibold text-rose-600 whitespace-nowrap'>
-              {renderCnyFen(text)}
-            </span>
-          );
-        },
-      },
-      {
-        title: t('操作'),
-        key: 'action',
-        width: 90,
-        render: (_, record) => {
-          if (record._type === 'pay_request') {
-            return (
-              <Button
-                type='primary'
-                theme='solid'
-                size='small'
-                className='!rounded-lg'
-                disabled={isOutOfStock(record.stock)}
-                onClick={() => openPayRequestModal(record)}
-              >
-                {isOutOfStock(record.stock) ? t('售罄') : t('充值')}
-              </Button>
-            );
-          }
-          if (record._type === 'pay_token') {
-            return (
-              <Button
-                type='primary'
-                theme='solid'
-                size='small'
-                className='!rounded-lg'
-                disabled={isOutOfStock(record.stock)}
-                onClick={() => openPayTokenModal(record)}
-              >
-                {isOutOfStock(record.stock) ? t('售罄') : t('充值')}
-              </Button>
-            );
-          }
-          if (record._type === 'payg') {
-            return (
-              <Button
-                type='primary'
-                theme='solid'
-                size='small'
-                className='!rounded-lg'
-                disabled={isOutOfStock(record.stock)}
-                onClick={() => openPaygModal(record)}
-              >
-                {isOutOfStock(record.stock) ? t('售罄') : t('充值')}
-              </Button>
-            );
-          }
-          const isLimitReached =
-            Number(record.purchase_limit) > 0 &&
-            Number(record.purchased_count) >= Number(record.purchase_limit);
-          const outOfStock = isOutOfStock(record.stock);
-          return (
-            <Button
-              type='primary'
-              theme='solid'
-              size='small'
-              className='!rounded-lg'
-              disabled={outOfStock || isLimitReached}
-              onClick={() => openOrderModal(record)}
-            >
-              {outOfStock
-                ? t('售罄')
-                : isLimitReached
-                  ? t('已达限购')
-                  : t('购买')}
-            </Button>
-          );
-        },
-      },
-    ],
-    [
-      t,
-      groupRatios,
-      openOrderModal,
-      openPaygModal,
-      openPayRequestModal,
-      openPayTokenModal,
-    ],
+  const getStoreItemTypeLabel = (record) => {
+    if (record._type === 'pay_request') return t('按次付费');
+    if (record._type === 'pay_token') return t('按token付费');
+    if (record._type === 'payg') return t('按量付费');
+    const mode = inferPresetMode(record);
+    if (mode === 'request') return t('次数订阅');
+    if (mode === 'tokens') return t('Tokens订阅');
+    return t('额度订阅');
+  };
+
+  const getStoreItemTitle = (record) =>
+    record?.name ||
+    (record?._type === 'payg'
+      ? t('按量付费')
+      : record?._type === 'pay_request'
+      ? t('按次付费')
+      : record?._type === 'pay_token'
+      ? t('按token付费')
+      : '-');
+
+  const renderStoreMetric = (label, value, key) => (
+    <div key={key || label} className='min-w-0'>
+      <div className='text-[11px] leading-4 text-semi-color-text-2'>
+        {label}
+      </div>
+      <div className='mt-0.5 min-w-0 text-sm font-medium leading-5 text-semi-color-text-0'>
+        {value}
+      </div>
+    </div>
   );
 
+  const renderStoreListCell = (label, children, className = '') => (
+    <div className={`min-w-0 ${className}`.trim()}>
+      <div className='mb-1 text-[11px] leading-4 text-semi-color-text-2 lg:hidden'>
+        {label}
+      </div>
+      <div className='min-w-0 text-sm leading-5 text-semi-color-text-0'>
+        {children}
+      </div>
+    </div>
+  );
+
+  const renderStockValue = (record) => {
+    const stock = normalizeStockValue(record?.stock);
+    if (stock === null) return t('无限');
+    if (stock === 0) return <Text type='danger'>{t('售罄')}</Text>;
+    if (typeof stock === 'number') return stock;
+    return '-';
+  };
+
+  const renderStoreQuotaValue = (record) => {
+    if (record._type === 'payg') {
+      return '-';
+    }
+    if (record._type === 'pay_request') {
+      return '-';
+    }
+    if (record._type === 'pay_token') {
+      return '-';
+    }
+    const mode = inferPresetMode(record);
+    if (mode === 'request') {
+      const total = Number(record.quota) || 0;
+      return total === 0 ? t('无限次数') : `${total} ${t('次')}`;
+    }
+    if (mode === 'tokens') {
+      const quota = Number(record.quota) || 0;
+      return quota === 0 ? t('无限 Tokens') : `${quota} tokens`;
+    }
+    const quota = Number(record.quota) || 0;
+    return quota === 0 ? t('无限额度') : renderQuotaToUSD(quota, 2);
+  };
+
+  const renderStoreDailyValue = (record) => {
+    if (
+      record._type === 'payg' ||
+      record._type === 'pay_request' ||
+      record._type === 'pay_token'
+    ) {
+      return '-';
+    }
+    const mode = inferPresetMode(record);
+    if (mode === 'request') {
+      const daily = Number(record.daily_request_limit) || 0;
+      return daily === 0 ? t('无限') : `${daily} ${t('次/天')}`;
+    }
+    const groupDailyLimits = normalizeGroupDailyLimits(
+      record.group_daily_limits,
+    );
+    if (groupDailyLimits.length > 0) {
+      return (
+        <span className='inline-flex max-w-full flex-wrap gap-1'>
+          {groupDailyLimits.map((item) => (
+            <span
+              key={`list-${record._key}-${item.group_id}`}
+              className='rounded bg-[var(--app-control-bg)] px-1.5 py-0.5 text-xs leading-4 text-semi-color-text-1'
+            >
+              {`${getGroupLabel(item.group_id)} ${
+                item.daily_quota_limit <= 0
+                  ? t('无限')
+                  : mode === 'tokens'
+                  ? `${item.daily_quota_limit || 0} tokens`
+                  : renderQuotaToUSD(item.daily_quota_limit || 0, 2)
+              }`}
+            </span>
+          ))}
+        </span>
+      );
+    }
+    if (mode === 'tokens') {
+      const limit = Number(record.daily_quota_limit) || 0;
+      return limit <= 0 ? t('无限') : `${limit} tokens`;
+    }
+    return Number(record.daily_quota_limit) <= 0
+      ? t('无限')
+      : renderQuotaToUSD(record.daily_quota_limit || 0, 2);
+  };
+
+  const renderStoreDurationValue = (record) => {
+    if (
+      record._type === 'payg' ||
+      record._type === 'pay_request' ||
+      record._type === 'pay_token'
+    ) {
+      return '-';
+    }
+    const days = Number(record.quota_valid_days) || 0;
+    return days === 0 ? t('无限') : `${days} ${t('天')}`;
+  };
+
+  const renderStoreGroups = (record) => {
+    const groupIds = normalizeGroupIds(record.allowed_group_ids);
+    const visibleGroupIds = getVisibleOptionalGroupIds(record.allowed_group_ids);
+    if (groupIds.length === 0) {
+      return record._type === 'payg' ||
+        record._type === 'pay_request' ||
+        record._type === 'pay_token' ? (
+        '-'
+      ) : (
+        <Text type='danger'>{t('未配置')}</Text>
+      );
+    }
+    if (visibleGroupIds.length === 0) return '-';
+    return (
+      <span className='inline-flex max-w-full flex-wrap gap-1'>
+        {visibleGroupIds.map((gid) => (
+          <GroupRatioPill
+            key={`store-group-${record._key}-${gid}`}
+            label={getGroupLabel(gid)}
+            ratio={groupRatios?.[gid]}
+          />
+        ))}
+      </span>
+    );
+  };
+
+  const getStoreActionState = (record) => {
+    const outOfStock = isOutOfStock(record.stock);
+    if (record._type === 'pay_request') {
+      return {
+        disabled: outOfStock,
+        label: outOfStock ? t('售罄') : t('充值'),
+        onClick: () => openPayRequestModal(record),
+      };
+    }
+    if (record._type === 'pay_token') {
+      return {
+        disabled: outOfStock,
+        label: outOfStock ? t('售罄') : t('充值'),
+        onClick: () => openPayTokenModal(record),
+      };
+    }
+    if (record._type === 'payg') {
+      return {
+        disabled: outOfStock,
+        label: outOfStock ? t('售罄') : t('充值'),
+        onClick: () => openPaygModal(record),
+      };
+    }
+    const isLimitReached =
+      Number(record.purchase_limit) > 0 &&
+      Number(record.purchased_count) >= Number(record.purchase_limit);
+    return {
+      disabled: outOfStock || isLimitReached,
+      label: outOfStock ? t('售罄') : isLimitReached ? t('已达限购') : t('购买'),
+      onClick: () => openOrderModal(record),
+    };
+  };
+
   const planListView = (
-    <Card className='!rounded-xl overflow-hidden' bordered={false}>
-      <Table
-        columns={combinedListColumns}
-        dataSource={combinedListData}
-        rowKey='_key'
-        pagination={false}
-        scroll={{ y: 'calc(100vh - 280px)' }}
-        size='small'
-      />
+    <Card
+      className='subscription-store-list !rounded-2xl !border-0 !shadow-none overflow-hidden'
+      bodyStyle={{ padding: 0 }}
+    >
+      {combinedListData.length === 0 ? (
+        <Empty description={t('暂无商品')} className='py-14' />
+      ) : (
+        <div>
+          <div className='hidden grid-cols-[112px_minmax(170px,1.2fr)_120px_minmax(150px,1.2fr)_76px_76px_minmax(170px,1.25fr)_96px_86px] items-center gap-3 border-b border-[var(--app-border)] bg-[var(--app-card-muted)] px-5 py-3 text-xs font-medium text-semi-color-text-2 lg:grid'>
+            <div>{t('类型')}</div>
+            <div>{t('名称')}</div>
+            <div>{t('额度/次数')}</div>
+            <div>{t('日限')}</div>
+            <div>{t('时长')}</div>
+            <div>{t('库存')}</div>
+            <div>{t('可选分组')}</div>
+            <div className='text-right'>{t('价格')}</div>
+            <div className='text-right'>{t('操作')}</div>
+          </div>
+          <div className='divide-y divide-[var(--app-border)]'>
+            {combinedListData.map((record) => {
+              const action = getStoreActionState(record);
+              const isRecharge =
+                record._type === 'payg' ||
+                record._type === 'pay_request' ||
+                record._type === 'pay_token';
+              const price = isRecharge ? '-' : renderCnyFen(record.price_fen);
+              return (
+                <article
+                  key={record._key}
+                  className='grid gap-4 px-5 py-4 transition-colors hover:bg-[var(--app-card-muted)] lg:grid-cols-[112px_minmax(170px,1.2fr)_120px_minmax(150px,1.2fr)_76px_76px_minmax(170px,1.25fr)_96px_86px] lg:items-center lg:gap-3'
+                >
+                  {renderStoreListCell(
+                    t('类型'),
+                    <div className='flex flex-wrap items-center gap-2'>
+                      <span className='rounded bg-[var(--app-control-bg)] px-2 py-0.5 text-xs font-medium leading-5 text-semi-color-text-1'>
+                        {getStoreItemTypeLabel(record)}
+                      </span>
+                      {Number(record.purchase_limit) > 0 ? (
+                        <span className='text-xs text-semi-color-text-2'>
+                          {t('限购')} {Number(record.purchase_limit)} {t('次')}
+                        </span>
+                      ) : null}
+                    </div>,
+                    'lg:self-start',
+                  )}
+
+                  {renderStoreListCell(
+                    t('名称'),
+                    <>
+                      <div className='truncate text-base font-semibold leading-6 text-semi-color-text-0 lg:text-sm lg:leading-5'>
+                        {getStoreItemTitle(record)}
+                      </div>
+                      {record.description ? (
+                        <div className='mt-1 line-clamp-2 text-xs leading-5 text-semi-color-text-2'>
+                          {record.description}
+                        </div>
+                      ) : null}
+                    </>,
+                    'lg:self-start',
+                  )}
+
+                  {renderStoreListCell(
+                    t('额度/次数'),
+                    renderStoreQuotaValue(record),
+                  )}
+                  {renderStoreListCell(
+                    t('日限'),
+                    renderStoreDailyValue(record),
+                  )}
+                  {renderStoreListCell(
+                    t('时长'),
+                    renderStoreDurationValue(record),
+                  )}
+                  {renderStoreListCell(t('库存'), renderStockValue(record))}
+                  {renderStoreListCell(
+                    t('可选分组'),
+                    renderStoreGroups(record),
+                    'lg:self-start',
+                  )}
+                  {renderStoreListCell(
+                    t('价格'),
+                    <span
+                      className={
+                        isRecharge
+                          ? 'font-medium text-semi-color-text-1'
+                          : 'font-semibold text-rose-600'
+                      }
+                    >
+                      {price}
+                    </span>,
+                    'lg:text-right',
+                  )}
+                  <div className='min-w-0 lg:text-right'>
+                    <div className='mb-1 text-[11px] leading-4 text-semi-color-text-2 lg:hidden'>
+                      {t('操作')}
+                    </div>
+                    <Button
+                      type='primary'
+                      theme='solid'
+                      className='!rounded-lg min-w-[82px]'
+                      disabled={action.disabled}
+                      onClick={action.onClick}
+                    >
+                      {action.label}
+                    </Button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </Card>
   );
 
@@ -2546,13 +2533,11 @@ const Subscription = () => {
                         {getVisibleOptionalGroupIds(
                           selectedPayRequestProduct.allowed_group_ids,
                         ).map((gid) => (
-                          <Text
+                          <GroupRatioPill
                             key={`${selectedPayRequestProduct.id}-${gid}`}
-                            code
-                            style={{ fontSize: 12 }}
-                          >
-                            {`${getGroupLabel(gid)} * ${formatRatio(groupRatios?.[gid])}`}
-                          </Text>
+                            label={getGroupLabel(gid)}
+                            ratio={groupRatios?.[gid]}
+                          />
                         ))}
                       </span>
                     </div>
@@ -2804,13 +2789,11 @@ const Subscription = () => {
                         {getVisibleOptionalGroupIds(
                           selectedPayTokenProduct.allowed_group_ids,
                         ).map((gid) => (
-                          <Text
+                          <GroupRatioPill
                             key={`${selectedPayTokenProduct.id}-${gid}`}
-                            code
-                            style={{ fontSize: 12 }}
-                          >
-                            {`${getGroupLabel(gid)} * ${formatRatio(groupRatios?.[gid])}`}
-                          </Text>
+                            label={getGroupLabel(gid)}
+                            ratio={groupRatios?.[gid]}
+                          />
                         ))}
                       </span>
                     </div>
@@ -3055,13 +3038,11 @@ const Subscription = () => {
                         {getVisibleOptionalGroupIds(
                           selectedPaygProduct.allowed_group_ids,
                         ).map((gid) => (
-                          <Text
+                          <GroupRatioPill
                             key={`${selectedPaygProduct.id}-${gid}`}
-                            code
-                            style={{ fontSize: 12 }}
-                          >
-                            {`${getGroupLabel(gid)} * ${formatRatio(groupRatios?.[gid])}`}
-                          </Text>
+                            label={getGroupLabel(gid)}
+                            ratio={groupRatios?.[gid]}
+                          />
                         ))}
                       </span>
                     </div>
@@ -3278,8 +3259,8 @@ const Subscription = () => {
             subscriptionCheckoutMode === 'traffic'
               ? undefined
               : payMethod === 'epay' && !epayCheckout
-                ? t('去支付')
-                : t('确认购买')
+              ? t('去支付')
+              : t('确认购买')
           }
           cancelText={
             subscriptionCheckoutMode === 'traffic' ? undefined : t('取消')
@@ -3383,7 +3364,9 @@ const Subscription = () => {
                                         {`${getGroupLabel(item.group_id)}: ${
                                           item.daily_quota_limit <= 0
                                             ? t('无限')
-                                            : `${item.daily_quota_limit || 0} tokens`
+                                            : `${
+                                                item.daily_quota_limit || 0
+                                              } tokens`
                                         }`}
                                       </Text>
                                     ))}
@@ -3396,7 +3379,10 @@ const Subscription = () => {
                                 {t('日限')}{' '}
                                 {Number(orderingPlan?.daily_quota_limit) <= 0
                                   ? t('无限')
-                                  : `${Number(orderingPlan?.daily_quota_limit) || 0} tokens`}
+                                  : `${
+                                      Number(orderingPlan?.daily_quota_limit) ||
+                                      0
+                                    } tokens`}
                               </div>
                             );
                           })()}
@@ -3464,16 +3450,11 @@ const Subscription = () => {
                     <div className='text-base font-semibold text-rose-600'>
                       {renderCnyFen(orderTotalFen)}
                     </div>
-                    {orderingPlan?.multi_quantity_enabled ? (
+                    {orderQuantity > 1 ? (
                       <div className='mt-0.5 text-xs text-gray-500'>
                         {t('单价')}:{' '}
                         {renderCnyFen(orderingPlan?.price_fen || 0)} ×{' '}
-                        {(() => {
-                          const qtyRaw = Number(orderQuantity);
-                          return Number.isFinite(qtyRaw)
-                            ? Math.max(1, Math.floor(qtyRaw))
-                            : 1;
-                        })()}
+                        {orderQuantity}
                       </div>
                     ) : null}
                   </div>
@@ -3514,53 +3495,46 @@ const Subscription = () => {
               </div>
             ) : (
               <>
-                {orderingPlan?.multi_quantity_enabled ? (
-                  <div>
-                    <div className='mb-2 flex items-center justify-between gap-3'>
-                      <Text strong>{t('购买数量')}</Text>
-                    </div>
-                    <InputNumber
-                      value={orderQuantity}
-                      min={1}
-                      max={maxOrderQuantity}
-                      precision={0}
-                      disabled={
-                        Boolean(epayCheckout) ||
-                        orderSubmitting ||
-                        payConfigLoading
-                      }
-                      onChange={(v) => {
-                        const raw = Number(v);
-                        const next = Number.isFinite(raw)
-                          ? Math.min(
-                              Math.max(1, Math.floor(raw)),
-                              maxOrderQuantity,
-                            )
-                          : 1;
-                        setOrderQuantity(next);
-                        if (
-                          next > 1 &&
-                          orderingPlan?.multi_quantity_defer_only !== false
-                        ) {
-                          setApplyMode('defer');
-                        }
-                      }}
-                      style={{ width: '100%' }}
-                    />
-                    {(() => {
-                      const hasPurchaseLimit =
-                        Number(orderingPlan?.purchase_limit) > 0;
-                      const stock = normalizeStockValue(orderingPlan?.stock);
-                      const hasStockLimit = typeof stock === 'number';
-                      if (!hasPurchaseLimit && !hasStockLimit) return null;
-                      return (
-                        <div className='mt-2 text-xs text-gray-500'>
-                          {t('最多可购买')} {maxOrderQuantity} {t('份')}
-                        </div>
-                      );
-                    })()}
+                <div>
+                  <div className='mb-2 flex items-center justify-between gap-3'>
+                    <Text strong>{t('购买数量')}</Text>
                   </div>
-                ) : null}
+                  <InputNumber
+                    value={orderQuantity}
+                    min={1}
+                    max={maxOrderQuantity}
+                    precision={0}
+                    disabled={
+                      Boolean(epayCheckout) ||
+                      orderSubmitting ||
+                      payConfigLoading
+                    }
+                    onChange={(v) => {
+                      const raw = Number(v);
+                      const next = Number.isFinite(raw)
+                        ? Math.min(
+                            Math.max(1, Math.floor(raw)),
+                            maxOrderQuantity,
+                          )
+                        : 1;
+                      setOrderQuantity(next);
+                    }}
+                    style={{ width: '100%' }}
+                  />
+                  {(() => {
+                    const hasPurchaseLimit =
+                      Number(orderingPlan?.purchase_limit) > 0;
+                    const stock = normalizeStockValue(orderingPlan?.stock);
+                    const hasStockLimit = typeof stock === 'number';
+                    if (!hasPurchaseLimit && !hasStockLimit) return null;
+                    return (
+                      <div className='mt-2 text-xs text-gray-500'>
+                        {t('最多可购买')} {maxOrderQuantity} {t('份')}
+                      </div>
+                    );
+                  })()}
+                </div>
+
                 <div>
                   <div className='mb-2 flex items-center justify-between gap-3'>
                     <Text strong>{t('生效方式')}</Text>
@@ -3571,24 +3545,10 @@ const Subscription = () => {
                     onChange={(val) => {
                       const selected =
                         val && val.target ? val.target.value : val;
-                      if (
-                        selected === 'stack' &&
-                        orderingPlan?.multi_quantity_defer_only !== false
-                      ) {
-                        setApplyMode('defer');
-                        return;
-                      }
                       setApplyMode(selected);
                     }}
                   >
-                    <Radio
-                      value='stack'
-                      disabled={
-                        orderingPlan?.multi_quantity_defer_only !== false
-                      }
-                    >
-                      {t('叠加（立即生效）')}
-                    </Radio>
+                    <Radio value='stack'>{t('叠加（立即生效）')}</Radio>
                     <Radio value='defer'>{t('顺延（到期后生效）')}</Radio>
                   </Radio.Group>
                   <div className='mt-2 text-xs text-gray-500'>
@@ -3598,11 +3558,6 @@ const Subscription = () => {
                         )
                       : t('订阅额度购买后将立即生效')}
                   </div>
-                  {orderingPlan?.multi_quantity_defer_only !== false ? (
-                    <div className='mt-1 text-xs text-gray-500'>
-                      {t('仅支持顺延')}
-                    </div>
-                  ) : null}
                 </div>
 
                 <div>
@@ -3645,7 +3600,8 @@ const Subscription = () => {
                         }
                       }}
                     >
-                      {epayEnabled &&
+                      {orderTotalFen > 0 &&
+                        epayEnabled &&
                         epayMethods.map((m) => (
                           <Radio key={m.type} value={`epay:${m.type}`}>
                             {m.name || m.type}
@@ -3654,12 +3610,13 @@ const Subscription = () => {
                       <Radio value='balance'>{t('账户余额')}</Radio>
                     </Radio.Group>
                   </Spin>
-                  {!payConfigLoading && !epayEnabled && (
+                  {orderTotalFen > 0 && !payConfigLoading && !epayEnabled && (
                     <div className='mt-2 text-xs text-gray-500'>
                       {t('管理员未配置易支付')}
                     </div>
                   )}
-                  {epayEnabled &&
+                  {orderTotalFen > 0 &&
+                    epayEnabled &&
                     !payConfigLoading &&
                     epayMethods.length === 0 && (
                       <div className='mt-2 text-xs text-gray-500'>
@@ -3789,14 +3746,22 @@ const Subscription = () => {
                 </div>
                 <div className='flex items-center rounded-lg overflow-hidden bg-semi-color-fill-0 dark:bg-semi-color-fill-1'>
                   <button
-                    className={`p-2 transition-colors ${viewMode === 'card' ? 'bg-semi-color-fill-2 dark:bg-semi-color-fill-2' : 'hover:bg-semi-color-fill-1 dark:hover:bg-semi-color-fill-2'}`}
+                    className={`p-2 transition-colors ${
+                      viewMode === 'card'
+                        ? 'bg-semi-color-fill-2 dark:bg-semi-color-fill-2'
+                        : 'hover:bg-semi-color-fill-1 dark:hover:bg-semi-color-fill-2'
+                    }`}
                     onClick={() => setViewMode('card')}
                     title={t('卡片视图')}
                   >
                     <LayoutGrid size={18} />
                   </button>
                   <button
-                    className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-semi-color-fill-2 dark:bg-semi-color-fill-2' : 'hover:bg-semi-color-fill-1 dark:hover:bg-semi-color-fill-2'}`}
+                    className={`p-2 transition-colors ${
+                      viewMode === 'list'
+                        ? 'bg-semi-color-fill-2 dark:bg-semi-color-fill-2'
+                        : 'hover:bg-semi-color-fill-1 dark:hover:bg-semi-color-fill-2'
+                    }`}
                     onClick={() => setViewMode('list')}
                     title={t('列表视图')}
                   >

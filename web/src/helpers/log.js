@@ -25,6 +25,38 @@ export function getLogOther(otherStr) {
   return other;
 }
 
+export const PLAYGROUND_LOG_TOKEN_VALUE = '__playground__';
+
+function safeGetLogOther(otherStr) {
+  try {
+    return getLogOther(otherStr);
+  } catch (_) {
+    return {};
+  }
+}
+
+export function isPlaygroundLogRecord(record) {
+  if (!record) return false;
+  const other = safeGetLogOther(record.other);
+  const requestPath = String(
+    record.request_path || other?.request_path || '',
+  ).trim();
+  return (
+    requestPath === '/pg/chat/completions' || requestPath.startsWith('/pg/')
+  );
+}
+
+export function getUsageLogTokenDisplay(record, t) {
+  const tokenName = String(record?.token_name || '').trim();
+  if (tokenName) {
+    return typeof t === 'function' ? t(tokenName) : tokenName;
+  }
+  if (isPlaygroundLogRecord(record)) {
+    return typeof t === 'function' ? t('操练场') : '操练场';
+  }
+  return '';
+}
+
 export function normalizeManageLogContent(text, t) {
   if (!text) {
     return text;
@@ -35,7 +67,9 @@ export function normalizeManageLogContent(text, t) {
     return text;
   }
 
-  const quotaMatches = normalized.match(/(?:[＄$]\s*)?[0-9]+(?:\.[0-9]+)?\s*额度/g);
+  const quotaMatches = normalized.match(
+    /(?:[＄$]\s*)?[0-9]+(?:\.[0-9]+)?\s*额度/g,
+  );
   if (quotaMatches && quotaMatches.length >= 2) {
     const fromQuota = quotaMatches[0].trim();
     const toQuota = quotaMatches[1].trim();

@@ -1966,71 +1966,38 @@ func consumeUserQuotaByBucket(id int, quota int, bucket string, usingGroupID int
 				return errors.New("按量付费额度不足")
 			}
 
-			type candidate struct {
-				Idx int
-			}
-			var chosen *candidate
-			if paygProductId != 0 {
-				for i := range balances {
-					if balances[i].ProductId != paygProductId {
-						continue
-					}
-					ids, err := resolvePaygBalanceAllowedGroupIDs(balances[i])
-					if err != nil {
-						return err
-					}
-					allowed := false
-					for _, gid := range ids {
-						if gid == usingGroupID {
-							allowed = true
-							break
-						}
-					}
-					if !allowed {
-						return errors.New("按量付费商品分组不匹配")
-					}
-					if balances[i].RemainingQuota < quota {
-						return errors.New("按量付费额度不足")
-					}
-					chosen = &candidate{Idx: i}
-					break
-				}
-				if chosen == nil {
-					return errors.New("按量付费商品余额不存在")
-				}
-			} else {
-				for i := range balances {
-					if balances[i].RemainingQuota < quota {
-						continue
-					}
-					ids, err := resolvePaygBalanceAllowedGroupIDs(balances[i])
-					if err != nil {
-						return err
-					}
-					for _, gid := range ids {
-						if gid == usingGroupID {
-							chosen = &candidate{Idx: i}
-							break
-						}
-					}
-					if chosen != nil {
-						break
-					}
-				}
-				if chosen == nil {
-					return errors.New("按量付费额度不足")
-				}
-			}
-
-			target := balances[chosen.Idx]
-			if err := tx.Model(&PaygUserBalance{}).Where("id = ?", target.Id).
-				Update("remaining_quota", gorm.Expr("remaining_quota - ?", quota)).Error; err != nil {
+			resolvedAllocations, ok, err := buildPaygConsumableAllocationsFromBalances(balances, usingGroupID, quota)
+			if err != nil {
 				return err
 			}
-			selectedPaygProductId = target.ProductId
+			if !ok || len(resolvedAllocations) == 0 {
+				return errors.New("按量付费额度不足")
+			}
+			if paygProductId != 0 && resolvedAllocations[0].ProductId != paygProductId {
+				return errors.New("按量付费商品分组不匹配")
+			}
+
+			indexByProductID := make(map[int]int, len(balances))
+			for i := range balances {
+				indexByProductID[balances[i].ProductId] = i
+			}
+			for _, allocation := range resolvedAllocations {
+				idx, ok := indexByProductID[allocation.ProductId]
+				if !ok {
+					return errors.New("按量付费商品余额不存在")
+				}
+				if balances[idx].RemainingQuota < allocation.Quota {
+					return errors.New("按量付费额度不足")
+				}
+				if err := tx.Model(&PaygUserBalance{}).Where("id = ?", balances[idx].Id).
+					Update("remaining_quota", gorm.Expr("remaining_quota - ?", allocation.Quota)).Error; err != nil {
+					return err
+				}
+				balances[idx].RemainingQuota -= allocation.Quota
+			}
+			selectedPaygProductId = resolvedAllocations[0].ProductId
 
 			// Update union groups after consuming.
-			balances[chosen.Idx].RemainingQuota = target.RemainingQuota - quota
 			dustCleared, err := clearPaygDustFromBalancesTx(tx, balances, common.PreConsumedQuota)
 			if err != nil {
 				return err
@@ -2078,71 +2045,38 @@ func consumeUserQuotaByBucket(id int, quota int, bucket string, usingGroupID int
 				return errors.New("按token付费余额不足")
 			}
 
-			type candidate struct {
-				Idx int
-			}
-			var chosen *candidate
-			if paygProductId != 0 {
-				for i := range balances {
-					if balances[i].ProductId != paygProductId {
-						continue
-					}
-					ids, err := resolvePayTokenBalanceAllowedGroupIDs(balances[i])
-					if err != nil {
-						return err
-					}
-					allowed := false
-					for _, gid := range ids {
-						if gid == usingGroupID {
-							allowed = true
-							break
-						}
-					}
-					if !allowed {
-						return errors.New("按token付费商品分组不匹配")
-					}
-					if balances[i].RemainingTokens < quota {
-						return errors.New("按token付费余额不足")
-					}
-					chosen = &candidate{Idx: i}
-					break
-				}
-				if chosen == nil {
-					return errors.New("按token付费商品余额不存在")
-				}
-			} else {
-				for i := range balances {
-					if balances[i].RemainingTokens < quota {
-						continue
-					}
-					ids, err := resolvePayTokenBalanceAllowedGroupIDs(balances[i])
-					if err != nil {
-						return err
-					}
-					for _, gid := range ids {
-						if gid == usingGroupID {
-							chosen = &candidate{Idx: i}
-							break
-						}
-					}
-					if chosen != nil {
-						break
-					}
-				}
-				if chosen == nil {
-					return errors.New("按token付费余额不足")
-				}
-			}
-
-			target := balances[chosen.Idx]
-			if err := tx.Model(&PayTokenUserBalance{}).Where("id = ?", target.Id).
-				Update("remaining_tokens", gorm.Expr("remaining_tokens - ?", quota)).Error; err != nil {
+			resolvedAllocations, ok, err := buildPayTokenConsumableAllocationsFromBalances(balances, usingGroupID, quota)
+			if err != nil {
 				return err
 			}
-			selectedPaygProductId = target.ProductId
+			if !ok || len(resolvedAllocations) == 0 {
+				return errors.New("按token付费余额不足")
+			}
+			if paygProductId != 0 && resolvedAllocations[0].ProductId != paygProductId {
+				return errors.New("按token付费商品分组不匹配")
+			}
+
+			indexByProductID := make(map[int]int, len(balances))
+			for i := range balances {
+				indexByProductID[balances[i].ProductId] = i
+			}
+			for _, allocation := range resolvedAllocations {
+				idx, ok := indexByProductID[allocation.ProductId]
+				if !ok {
+					return errors.New("按token付费商品余额不存在")
+				}
+				if balances[idx].RemainingTokens < allocation.Quota {
+					return errors.New("按token付费余额不足")
+				}
+				if err := tx.Model(&PayTokenUserBalance{}).Where("id = ?", balances[idx].Id).
+					Update("remaining_tokens", gorm.Expr("remaining_tokens - ?", allocation.Quota)).Error; err != nil {
+					return err
+				}
+				balances[idx].RemainingTokens -= allocation.Quota
+			}
+			selectedPaygProductId = resolvedAllocations[0].ProductId
 
 			// Update union groups after consuming.
-			balances[chosen.Idx].RemainingTokens = target.RemainingTokens - quota
 			unionGroupsJSON, err := UnionPayTokenAllowedGroupsFromBalances(balances)
 			if err != nil {
 				return err

@@ -66,6 +66,7 @@ const Dashboard = () => {
     dashboardData.setLineData,
     dashboardData.setModelColors,
     dashboardData.t,
+    dashboardData.groupLabelMaps,
   );
 
   // ========== 统计数据 ==========
@@ -76,10 +77,7 @@ const Dashboard = () => {
     dashboardData.consumeTokens,
     dashboardData.times,
     dashboardData.todayUsedQuota,
-    dashboardData.todayStandardUsedQuota,
     dashboardData.todayUsedTimes,
-    dashboardData.todayCacheHitRate,
-    dashboardData.todayGlobalCacheHitRate,
     dashboardData.trendData,
     dashboardData.performanceMetrics,
     dashboardData.navigate,
@@ -91,27 +89,34 @@ const Dashboard = () => {
   const accountGroup = groupedStatsData.find(
     (group) => group.key === 'account',
   );
-  const baseGroups = groupedStatsData.filter((group) => group.key !== 'account');
+  const baseGroups = groupedStatsData.filter(
+    (group) => group.key !== 'account',
+  );
 
   let statsCardGroups = baseGroups;
 
   if (!isAdminUser) {
     const usageGroup = baseGroups.find((group) => group.key === 'usage');
-    const cacheGroup = baseGroups.find((group) => group.key === 'cache');
+    const todayCallsGroup = baseGroups.find(
+      (group) => group.key === 'today-calls',
+    );
+    const tokensGroup = baseGroups.find((group) => group.key === 'tokens');
     const historyGroup = baseGroups.find((group) => group.key === 'history');
     const resourceGroup = baseGroups.find((group) => group.key === 'resource');
     const otherGroups = baseGroups.filter(
       (group) =>
         group.key !== 'usage' &&
-        group.key !== 'cache' &&
+        group.key !== 'today-calls' &&
+        group.key !== 'tokens' &&
         group.key !== 'history' &&
         group.key !== 'resource',
     );
 
-    // 顺序：今日消费 -> 缓存命中率 -> 今日剩余额度 -> 历史消耗
+    // 顺序：今日消费 -> 今日调用次数 -> TOKEN消耗 -> 今日剩余额度 -> 历史消耗
     statsCardGroups = [
       usageGroup,
-      cacheGroup,
+      todayCallsGroup,
+      tokensGroup,
       resourceGroup,
       historyGroup,
       ...otherGroups,
@@ -119,24 +124,41 @@ const Dashboard = () => {
   }
 
   // ========== 数据处理 ==========
+  const loadTokenQuotaDataIfVisible = () =>
+    isAdminUser ? Promise.resolve([]) : dashboardData.loadTokenQuotaData();
+
   const initChart = async () => {
-    const [data] = await Promise.all([
-      dashboardData.loadQuotaData(),
-      dashboardData.loadTodayUsedQuota(),
-    ]);
+    const [data, cacheHitRateByUA, tokenQuotaData, groupLabelMaps] =
+      await Promise.all([
+        dashboardData.loadQuotaData(),
+        dashboardData.loadCacheHitRateByUA(),
+        loadTokenQuotaDataIfVisible(),
+        dashboardData.loadGroupLabels(),
+        dashboardData.loadTodayUsedQuota(),
+      ]);
     if (data && data.length > 0) {
       dashboardCharts.updateChartData(data);
     }
+    dashboardCharts.updateCacheHitRateData(cacheHitRateByUA, groupLabelMaps);
+    dashboardCharts.updateTokenQuotaData(tokenQuotaData);
     if (isAdminUser && dashboardData.uptimeEnabled) {
       await dashboardData.loadUptimeData();
     }
   };
 
   const handleRefresh = async () => {
-    const data = await dashboardData.refresh();
+    const [data, cacheHitRateByUA, tokenQuotaData, groupLabelMaps] =
+      await Promise.all([
+        dashboardData.refresh(),
+        dashboardData.loadCacheHitRateByUA(),
+        loadTokenQuotaDataIfVisible(),
+        dashboardData.loadGroupLabels(),
+      ]);
     if (data && data.length > 0) {
       dashboardCharts.updateChartData(data);
     }
+    dashboardCharts.updateCacheHitRateData(cacheHitRateByUA, groupLabelMaps);
+    dashboardCharts.updateTokenQuotaData(tokenQuotaData);
     if (!isAdminUser) {
       await Promise.all([
         dashboardData.loadTodayUsedQuota(),
@@ -151,7 +173,18 @@ const Dashboard = () => {
   };
 
   const handleSearchConfirm = async () => {
-    await dashboardData.handleSearchConfirm(dashboardCharts.updateChartData);
+    const [data, cacheHitRateByUA, tokenQuotaData, groupLabelMaps] =
+      await Promise.all([
+        dashboardData.handleSearchConfirm(),
+        dashboardData.loadCacheHitRateByUA(),
+        loadTokenQuotaDataIfVisible(),
+        dashboardData.loadGroupLabels(),
+      ]);
+    if (data && data.length > 0) {
+      dashboardCharts.updateChartData(data);
+    }
+    dashboardCharts.updateCacheHitRateData(cacheHitRateByUA, groupLabelMaps);
+    dashboardCharts.updateTokenQuotaData(tokenQuotaData);
   };
 
   // ========== 数据准备 ==========
@@ -176,6 +209,12 @@ const Dashboard = () => {
       document.body.style.overflow = prevOverflow;
     };
   }, []);
+
+  useEffect(() => {
+    if (isAdminUser && dashboardData.activeChartTab === '6') {
+      dashboardData.setActiveChartTab('1');
+    }
+  }, [isAdminUser, dashboardData.activeChartTab]);
 
   const filterConfig = !isAdminUser
     ? {
@@ -219,7 +258,9 @@ const Dashboard = () => {
         >
           <StatsCards
             groupedStatsData={statsCardGroups}
-            loading={dashboardData.loading || dashboardData.todayUsedQuotaLoading}
+            loading={
+              dashboardData.loading || dashboardData.todayUsedQuotaLoading
+            }
           />
 
           <div className='flex min-h-0 flex-1 flex-col'>
@@ -230,9 +271,12 @@ const Dashboard = () => {
               spec_model_line={dashboardCharts.spec_model_line}
               spec_pie={dashboardCharts.spec_pie}
               spec_rank_bar={dashboardCharts.spec_rank_bar}
+              spec_cache_hit_rate={dashboardCharts.spec_cache_hit_rate}
+              spec_token_quota_bar={dashboardCharts.spec_token_quota_bar}
               CHART_CONFIG={CHART_CONFIG}
               hasApiInfoPanel={false}
               filterConfig={filterConfig}
+              showTokenQuotaChart={!isAdminUser}
               t={dashboardData.t}
             />
           </div>
@@ -264,7 +308,8 @@ const Dashboard = () => {
                   renderMonitorList={(monitors) =>
                     renderMonitorList(
                       monitors,
-                      (status) => getUptimeStatusColor(status, UPTIME_STATUS_MAP),
+                      (status) =>
+                        getUptimeStatusColor(status, UPTIME_STATUS_MAP),
                       (status) =>
                         getUptimeStatusText(
                           status,

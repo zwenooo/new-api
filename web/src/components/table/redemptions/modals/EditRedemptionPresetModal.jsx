@@ -17,7 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import {
@@ -104,7 +110,9 @@ const normalizeGroupDailyLimitsUSD = (val) => {
 const syncGroupDailyLimitsUSD = (allowedGroups, val) => {
   const allowed = normalizeGroupIds(allowedGroups);
   const existing = normalizeGroupDailyLimitsUSD(val);
-  const map = new Map(existing.map((item) => [item.group_id, item.daily_quota_limit_usd]));
+  const map = new Map(
+    existing.map((item) => [item.group_id, item.daily_quota_limit_usd]),
+  );
   return allowed.map((groupId) => ({
     group_id: groupId,
     daily_quota_limit_usd: map.get(groupId) ?? 0,
@@ -135,7 +143,9 @@ const normalizeGroupDailyLimitsTokens = (val) => {
 const syncGroupDailyLimitsTokens = (allowedGroups, val) => {
   const allowed = normalizeGroupIds(allowedGroups);
   const existing = normalizeGroupDailyLimitsTokens(val);
-  const map = new Map(existing.map((item) => [item.group_id, item.daily_quota_limit_tokens]));
+  const map = new Map(
+    existing.map((item) => [item.group_id, item.daily_quota_limit_tokens]),
+  );
   return allowed.map((groupId) => ({
     group_id: groupId,
     daily_quota_limit_tokens: map.get(groupId) ?? 0,
@@ -150,6 +160,8 @@ const EditRedemptionPresetModal = ({
   allowedModes,
   modeLocked,
   presetApiBase = '/api/redemption/presets',
+  showSortOrderField = true,
+  showMultiQuantityFields = true,
 }) => {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
@@ -249,44 +261,41 @@ const EditRedemptionPresetModal = ({
     return inferredMode || firstAllowedMode || 'subscription';
   }, [allowedModeSet, editingPreset, firstAllowedMode, lockedMode]);
 
-  const getInitValues = useCallback(
-    (mode) => {
-      const normalizedMode = mode || 'subscription';
-      const isSubscriptionProduct =
-        normalizedMode === 'subscription' ||
-        normalizedMode === 'tokens' ||
-        normalizedMode === 'request';
-      return {
-        id: undefined,
-        name: '',
-        description: '',
-        mode: normalizedMode,
-        sync_sold_assets: false,
-        enabled: isSubscriptionProduct ? false : true,
-        archived: false,
-        multi_quantity_enabled: false,
-        multi_quantity_defer_only: true,
-        sort_order: 0,
-        purchase_limit: 0,
-        stock: null,
-        price_yuan: 0,
-        quota_usd: 0,
-        quota_tokens: 0,
-        daily_quota_limit_usd: 0,
-        daily_quota_limit_tokens: 0,
-        daily_request_limit: 0,
-        request_quota: 0,
-        use_group_daily_limits: false,
-        group_daily_limits: [],
-        quota_valid_days: 0,
-        plan_valid_days: 0,
-        channel_ids: [],
-        allowed_group_ids: [],
-        expired_time: null,
-      };
-    },
-    [],
-  );
+  const getInitValues = useCallback((mode) => {
+    const normalizedMode = mode || 'subscription';
+    const isSubscriptionProduct =
+      normalizedMode === 'subscription' ||
+      normalizedMode === 'tokens' ||
+      normalizedMode === 'request';
+    return {
+      id: undefined,
+      name: '',
+      description: '',
+      mode: normalizedMode,
+      sync_sold_assets: false,
+      enabled: isSubscriptionProduct ? false : true,
+      archived: false,
+      multi_quantity_enabled: false,
+      multi_quantity_defer_only: true,
+      sort_order: 0,
+      purchase_limit: 0,
+      stock: null,
+      price_yuan: 0,
+      quota_usd: 0,
+      quota_tokens: 0,
+      daily_quota_limit_usd: 0,
+      daily_quota_limit_tokens: 0,
+      daily_request_limit: 0,
+      request_quota: 0,
+      use_group_daily_limits: false,
+      group_daily_limits: [],
+      quota_valid_days: 0,
+      plan_valid_days: 0,
+      channel_ids: [],
+      allowed_group_ids: [],
+      expired_time: null,
+    };
+  }, []);
 
   const initValues = useMemo(() => {
     const base = getInitValues(defaultMode);
@@ -307,7 +316,9 @@ const EditRedemptionPresetModal = ({
         if (groupId <= 0) return null;
         return {
           group_id: groupId,
-          daily_quota_limit_usd: convertQuotaToUSD(item?.daily_quota_limit || 0),
+          daily_quota_limit_usd: convertQuotaToUSD(
+            item?.daily_quota_limit || 0,
+          ),
         };
       })
       .filter(Boolean);
@@ -317,7 +328,9 @@ const EditRedemptionPresetModal = ({
         const groupId = Number.isFinite(rawId) ? Math.floor(rawId) : 0;
         if (groupId <= 0) return null;
         const rawDaily = Number(item?.daily_quota_limit ?? 0);
-        const daily = Number.isFinite(rawDaily) ? Math.max(0, Math.floor(rawDaily)) : 0;
+        const daily = Number.isFinite(rawDaily)
+          ? Math.max(0, Math.floor(rawDaily))
+          : 0;
         return {
           group_id: groupId,
           daily_quota_limit_tokens: daily,
@@ -325,7 +338,9 @@ const EditRedemptionPresetModal = ({
       })
       .filter(Boolean);
     const useGroupDailyLimits =
-      mode === 'tokens' ? groupDailyLimitsTokens.length > 0 : groupDailyLimitsUSD.length > 0;
+      mode === 'tokens'
+        ? groupDailyLimitsTokens.length > 0
+        : groupDailyLimitsUSD.length > 0;
     return {
       ...base,
       id: editingPreset.id,
@@ -366,7 +381,13 @@ const EditRedemptionPresetModal = ({
         : [],
       expired_time: expiredTime,
     };
-  }, [convertQuotaToUSD, defaultMode, editingPreset, getInitValues, lockedMode]);
+  }, [
+    convertQuotaToUSD,
+    defaultMode,
+    editingPreset,
+    getInitValues,
+    lockedMode,
+  ]);
 
   const loadGroups = useCallback(async () => {
     setGroupsLoading(true);
@@ -442,7 +463,9 @@ const EditRedemptionPresetModal = ({
       return;
     }
 
-    const sortOrder = parseInt(values.sort_order ?? 0, 10);
+    const sortOrder = showSortOrderField
+      ? parseInt(values.sort_order ?? 0, 10)
+      : parseInt(editingPreset?.sort_order ?? 0, 10);
     if (!Number.isFinite(sortOrder) || sortOrder < 0) {
       showError(t('排序不能小于0'));
       return;
@@ -460,11 +483,13 @@ const EditRedemptionPresetModal = ({
       archived: Boolean(values.archived),
       enabled: Boolean(values.archived) ? false : Boolean(values.enabled),
       multi_quantity_enabled:
-        mode === 'subscription' || mode === 'tokens' || mode === 'request'
+        showMultiQuantityFields &&
+        (mode === 'subscription' || mode === 'tokens' || mode === 'request')
           ? Boolean(values.multi_quantity_enabled)
           : false,
       multi_quantity_defer_only:
-        mode === 'subscription' || mode === 'tokens' || mode === 'request'
+        showMultiQuantityFields &&
+        (mode === 'subscription' || mode === 'tokens' || mode === 'request')
           ? Boolean(values.multi_quantity_defer_only)
           : true,
       sort_order: sortOrder,
@@ -473,7 +498,12 @@ const EditRedemptionPresetModal = ({
     };
 
     const allowedGroupIds = normalizeGroupIds(values.allowed_group_ids);
-    if (mode === 'subscription' || mode === 'tokens' || mode === 'payg' || mode === 'request') {
+    if (
+      mode === 'subscription' ||
+      mode === 'tokens' ||
+      mode === 'payg' ||
+      mode === 'request'
+    ) {
       if (allowedGroupIds.length === 0) {
         showError(t('请选择可用分组'));
         return;
@@ -531,7 +561,9 @@ const EditRedemptionPresetModal = ({
       payload.group_daily_limits = [];
     } else {
       if (mode === 'tokens') {
-        const quotaTokens = parseNonNegativeIntegerValue(values.quota_tokens ?? 0);
+        const quotaTokens = parseNonNegativeIntegerValue(
+          values.quota_tokens ?? 0,
+        );
         if (quotaTokens === null) {
           showError(t('Tokens 必须大于等于0'));
           return;
@@ -564,7 +596,9 @@ const EditRedemptionPresetModal = ({
             );
             if (raw === null) {
               showError(
-                `${t('每日额度必须大于等于0')}: ${groupLabelById[item.group_id] || t('未知分组')}`,
+                `${t('每日额度必须大于等于0')}: ${
+                  groupLabelById[item.group_id] || t('未知分组')
+                }`,
               );
               return;
             }
@@ -595,7 +629,9 @@ const EditRedemptionPresetModal = ({
         const quotaUSD = parseFloat(values.quota_usd);
         if (!Number.isFinite(quotaUSD) || quotaUSD < 0) {
           showError(
-            mode === 'subscription' ? t('额度必须大于等于0') : t('额度必须大于0'),
+            mode === 'subscription'
+              ? t('额度必须大于等于0')
+              : t('额度必须大于0'),
           );
           return;
         }
@@ -639,17 +675,22 @@ const EditRedemptionPresetModal = ({
               const dailyUSD = parseFloat(item?.daily_quota_limit_usd);
               if (!Number.isFinite(dailyUSD) || dailyUSD < 0) {
                 showError(
-                  `${t('每日额度必须大于等于0')}: ${groupLabelById[item.group_id] || t('未知分组')}`,
+                  `${t('每日额度必须大于等于0')}: ${
+                    groupLabelById[item.group_id] || t('未知分组')
+                  }`,
                 );
                 return;
               }
-              const dailyTokens = dailyUSD > 0 ? convertUSDToQuota(dailyUSD) : 0;
+              const dailyTokens =
+                dailyUSD > 0 ? convertUSDToQuota(dailyUSD) : 0;
               if (
                 dailyUSD > 0 &&
                 (!Number.isFinite(dailyTokens) || dailyTokens <= 0)
               ) {
                 showError(
-                  `${t('每日额度必须大于0')}: ${groupLabelById[item.group_id] || t('未知分组')}`,
+                  `${t('每日额度必须大于0')}: ${
+                    groupLabelById[item.group_id] || t('未知分组')
+                  }`,
                 );
                 return;
               }
@@ -664,7 +705,9 @@ const EditRedemptionPresetModal = ({
               }
             }
             payload.group_daily_limits = groupDailyLimitsPayload;
-            payload.daily_quota_limit = hasUnlimited ? 0 : dailyLimitTotalTokens;
+            payload.daily_quota_limit = hasUnlimited
+              ? 0
+              : dailyLimitTotalTokens;
           } else {
             const dailyUSD = parseFloat(values.daily_quota_limit_usd);
             if (!Number.isFinite(dailyUSD) || dailyUSD < 0) {
@@ -815,24 +858,33 @@ const EditRedemptionPresetModal = ({
                           onChange={(val) => {
                             if (!formApiRef.current) return;
                             const useGroupDailyLimits = Boolean(
-                              formApiRef.current.getValue('use_group_daily_limits'),
+                              formApiRef.current.getValue(
+                                'use_group_daily_limits',
+                              ),
                             );
                             if (!useGroupDailyLimits) return;
                             const currentLimits =
                               formApiRef.current.getValue('group_daily_limits');
-                            const sync = values.mode === 'tokens' ? syncGroupDailyLimitsTokens : syncGroupDailyLimitsUSD;
+                            const sync =
+                              values.mode === 'tokens'
+                                ? syncGroupDailyLimitsTokens
+                                : syncGroupDailyLimitsUSD;
                             formApiRef.current.setValue(
                               'group_daily_limits',
                               sync(val, currentLimits),
                             );
                           }}
-                          rules={[{ required: true, message: t('请选择可用分组') }]}
+                          rules={[
+                            { required: true, message: t('请选择可用分组') },
+                          ]}
                           style={{ width: '100%' }}
                           extraText={t('限制该商品可消费的渠道分组')}
                         />
                       </Col>
                     ) : null}
-                    {values.mode === 'subscription' || values.mode === 'tokens' || values.mode === 'request' ? (
+                    {values.mode === 'subscription' ||
+                    values.mode === 'tokens' ||
+                    values.mode === 'request' ? (
                       <Col span={24}>
                         <Form.Switch
                           field='enabled'
@@ -849,7 +901,9 @@ const EditRedemptionPresetModal = ({
                         <Form.Switch
                           field='archived'
                           label={t('停用商品')}
-                          extraText={t('停用后会自动下架，适合归档不再维护的商品')}
+                          extraText={t(
+                            '停用后会自动下架，适合归档不再维护的商品',
+                          )}
                           onChange={(checked) => {
                             if (checked) {
                               formApiRef.current?.setValue('enabled', false);
@@ -858,7 +912,10 @@ const EditRedemptionPresetModal = ({
                         />
                       </Col>
                     ) : null}
-                    {values.mode === 'subscription' || values.mode === 'tokens' || values.mode === 'request' ? (
+                    {showMultiQuantityFields &&
+                    (values.mode === 'subscription' ||
+                      values.mode === 'tokens' ||
+                      values.mode === 'request') ? (
                       <Col span={24}>
                         <Form.Switch
                           field='multi_quantity_enabled'
@@ -867,7 +924,10 @@ const EditRedemptionPresetModal = ({
                         />
                       </Col>
                     ) : null}
-                    {values.mode === 'subscription' || values.mode === 'tokens' || values.mode === 'request' ? (
+                    {showMultiQuantityFields &&
+                    (values.mode === 'subscription' ||
+                      values.mode === 'tokens' ||
+                      values.mode === 'request') ? (
                       <Col span={24}>
                         <Form.Switch
                           field='multi_quantity_defer_only'
@@ -902,18 +962,22 @@ const EditRedemptionPresetModal = ({
                         extraText={t('用于邀请返佣结算')}
                       />
                     </Col>
-                    <Col span={24}>
-                      <Form.InputNumber
-                        field='sort_order'
-                        label={t('排序')}
-                        precision={0}
-                        min={0}
-                        step={1}
-                        style={{ width: '100%' }}
-                        extraText={t('数值越大越靠前')}
-                      />
-                    </Col>
-                    {values.mode === 'subscription' || values.mode === 'tokens' || values.mode === 'request' ? (
+                    {showSortOrderField ? (
+                      <Col span={24}>
+                        <Form.InputNumber
+                          field='sort_order'
+                          label={t('排序')}
+                          precision={0}
+                          min={0}
+                          step={1}
+                          style={{ width: '100%' }}
+                          extraText={t('数值越大越靠前')}
+                        />
+                      </Col>
+                    ) : null}
+                    {values.mode === 'subscription' ||
+                    values.mode === 'tokens' ||
+                    values.mode === 'request' ? (
                       <Col span={24}>
                         <Form.InputNumber
                           field='purchase_limit'
@@ -926,7 +990,9 @@ const EditRedemptionPresetModal = ({
                         />
                       </Col>
                     ) : null}
-                    {values.mode === 'subscription' || values.mode === 'tokens' || values.mode === 'request' ? (
+                    {values.mode === 'subscription' ||
+                    values.mode === 'tokens' ||
+                    values.mode === 'request' ? (
                       <Col span={24}>
                         <Form.InputNumber
                           field='stock'
@@ -1065,16 +1131,23 @@ const EditRedemptionPresetModal = ({
                             if (!formApiRef.current) return;
                             if (checked) {
                               const allowed = normalizeGroupIds(
-                                formApiRef.current.getValue('allowed_group_ids'),
+                                formApiRef.current.getValue(
+                                  'allowed_group_ids',
+                                ),
                               );
                               const current =
-                                formApiRef.current.getValue('group_daily_limits');
+                                formApiRef.current.getValue(
+                                  'group_daily_limits',
+                                );
                               formApiRef.current.setValue(
                                 'group_daily_limits',
                                 syncGroupDailyLimitsTokens(allowed, current),
                               );
                             } else {
-                              formApiRef.current.setValue('group_daily_limits', []);
+                              formApiRef.current.setValue(
+                                'group_daily_limits',
+                                [],
+                              );
                             }
                           }}
                         />
@@ -1086,7 +1159,9 @@ const EditRedemptionPresetModal = ({
                             extraText={t('0 表示该分组无限制')}
                           >
                             {(() => {
-                              const allowed = normalizeGroupIds(values.allowed_group_ids);
+                              const allowed = normalizeGroupIds(
+                                values.allowed_group_ids,
+                              );
                               const limits = syncGroupDailyLimitsTokens(
                                 allowed,
                                 values.group_daily_limits,
@@ -1116,7 +1191,8 @@ const EditRedemptionPresetModal = ({
                                         className='flex items-center justify-between gap-3'
                                       >
                                         <Text code style={{ fontSize: 12 }}>
-                                          {groupLabelById[item.group_id] || t('未知分组')}
+                                          {groupLabelById[item.group_id] ||
+                                            t('未知分组')}
                                         </Text>
                                         <InputNumber
                                           value={item.daily_quota_limit_tokens}
@@ -1130,7 +1206,8 @@ const EditRedemptionPresetModal = ({
                                               row.group_id === item.group_id
                                                 ? {
                                                     ...row,
-                                                    daily_quota_limit_tokens: v ?? 0,
+                                                    daily_quota_limit_tokens:
+                                                      v ?? 0,
                                                   }
                                                 : row,
                                             );
@@ -1165,13 +1242,18 @@ const EditRedemptionPresetModal = ({
                             min={0}
                             step={1}
                             rules={[
-                              { required: true, message: t('请输入日限额（0 表示无限制）') },
+                              {
+                                required: true,
+                                message: t('请输入日限额（0 表示无限制）'),
+                              },
                               {
                                 validator: (rule, v) => {
                                   const num = parseNonNegativeIntegerValue(v);
                                   return num !== null
                                     ? Promise.resolve()
-                                    : Promise.reject(t('每日额度必须大于等于0'));
+                                    : Promise.reject(
+                                        t('每日额度必须大于等于0'),
+                                      );
                                 },
                               },
                             ]}
@@ -1197,7 +1279,9 @@ const EditRedemptionPresetModal = ({
                                 const num = parseInt(v, 10);
                                 return num >= 0
                                   ? Promise.resolve()
-                                  : Promise.reject(t('额度有效期（天）不能小于0'));
+                                  : Promise.reject(
+                                      t('额度有效期（天）不能小于0'),
+                                    );
                               },
                             },
                           ]}
@@ -1243,7 +1327,9 @@ const EditRedemptionPresetModal = ({
                             Number(values.quota_usd) === 0
                               ? t('折算额度：无限制')
                               : t('折算额度：{{amount}} tokens', {
-                                  amount: renderNumber(convertUSDToQuota(values.quota_usd)),
+                                  amount: renderNumber(
+                                    convertUSDToQuota(values.quota_usd),
+                                  ),
                                 })
                           }
                           data={[
@@ -1271,16 +1357,23 @@ const EditRedemptionPresetModal = ({
                                 if (!formApiRef.current) return;
                                 if (checked) {
                                   const allowed = normalizeGroupIds(
-                                    formApiRef.current.getValue('allowed_group_ids'),
+                                    formApiRef.current.getValue(
+                                      'allowed_group_ids',
+                                    ),
                                   );
                                   const current =
-                                    formApiRef.current.getValue('group_daily_limits');
+                                    formApiRef.current.getValue(
+                                      'group_daily_limits',
+                                    );
                                   formApiRef.current.setValue(
                                     'group_daily_limits',
                                     syncGroupDailyLimitsUSD(allowed, current),
                                   );
                                 } else {
-                                  formApiRef.current.setValue('group_daily_limits', []);
+                                  formApiRef.current.setValue(
+                                    'group_daily_limits',
+                                    [],
+                                  );
                                 }
                               }}
                             />
@@ -1292,7 +1385,9 @@ const EditRedemptionPresetModal = ({
                                 extraText={t('0 表示该分组无限制')}
                               >
                                 {(() => {
-                                  const allowed = normalizeGroupIds(values.allowed_group_ids);
+                                  const allowed = normalizeGroupIds(
+                                    values.allowed_group_ids,
+                                  );
                                   const limits = syncGroupDailyLimitsUSD(
                                     allowed,
                                     values.group_daily_limits,
@@ -1300,9 +1395,13 @@ const EditRedemptionPresetModal = ({
                                   let totalTokens = 0;
                                   let hasUnlimited = false;
                                   limits.forEach((item) => {
-                                    const usd = parseFloat(item?.daily_quota_limit_usd);
+                                    const usd = parseFloat(
+                                      item?.daily_quota_limit_usd,
+                                    );
                                     const tokens =
-                                      Number.isFinite(usd) && usd > 0 ? convertUSDToQuota(usd) : 0;
+                                      Number.isFinite(usd) && usd > 0
+                                        ? convertUSDToQuota(usd)
+                                        : 0;
                                     if (tokens === 0) {
                                       hasUnlimited = true;
                                     } else {
@@ -1322,7 +1421,8 @@ const EditRedemptionPresetModal = ({
                                             className='flex items-center justify-between gap-3'
                                           >
                                             <Text code style={{ fontSize: 12 }}>
-                                              {groupLabelById[item.group_id] || t('未知分组')}
+                                              {groupLabelById[item.group_id] ||
+                                                t('未知分组')}
                                             </Text>
                                             <InputNumber
                                               value={item.daily_quota_limit_usd}
@@ -1333,10 +1433,16 @@ const EditRedemptionPresetModal = ({
                                               prefix='$'
                                               style={{ width: 160 }}
                                               onChange={(v) => {
-                                                const next = limits.map((row) =>
-                                                  row.group_id === item.group_id
-                                                    ? { ...row, daily_quota_limit_usd: v ?? 0 }
-                                                    : row,
+                                                const next = limits.map(
+                                                  (row) =>
+                                                    row.group_id ===
+                                                    item.group_id
+                                                      ? {
+                                                          ...row,
+                                                          daily_quota_limit_usd:
+                                                            v ?? 0,
+                                                        }
+                                                      : row,
                                                 );
                                                 formApiRef.current?.setValue(
                                                   'group_daily_limits',
@@ -1364,7 +1470,9 @@ const EditRedemptionPresetModal = ({
                               <Form.InputNumber
                                 field='daily_quota_limit_usd'
                                 label={t('日限额（USD）')}
-                                placeholder={t('请输入日限额（美元，0 表示无限制）')}
+                                placeholder={t(
+                                  '请输入日限额（美元，0 表示无限制）',
+                                )}
                                 precision={2}
                                 min={0}
                                 step={1}
@@ -1372,20 +1480,25 @@ const EditRedemptionPresetModal = ({
                                 rules={[
                                   {
                                     required: true,
-                                    message: t('请输入日限额（美元，0 表示无限制）'),
+                                    message:
+                                      t('请输入日限额（美元，0 表示无限制）'),
                                   },
                                   {
                                     validator: (rule, v) => {
                                       const num = parseFloat(v);
                                       return Number.isFinite(num) && num >= 0
                                         ? Promise.resolve()
-                                        : Promise.reject(t('每日额度必须大于等于0'));
+                                        : Promise.reject(
+                                            t('每日额度必须大于等于0'),
+                                          );
                                     },
                                   },
                                 ]}
                                 extraText={t('折算额度：{{amount}} tokens', {
                                   amount: renderNumber(
-                                    convertUSDToQuota(values.daily_quota_limit_usd),
+                                    convertUSDToQuota(
+                                      values.daily_quota_limit_usd,
+                                    ),
                                   ),
                                 })}
                                 style={{ width: '100%' }}
@@ -1409,7 +1522,9 @@ const EditRedemptionPresetModal = ({
                                     const num = parseInt(v, 10);
                                     return num >= 0
                                       ? Promise.resolve()
-                                      : Promise.reject(t('额度有效期（天）不能小于0'));
+                                      : Promise.reject(
+                                          t('额度有效期（天）不能小于0'),
+                                        );
                                   },
                                 },
                               ]}
@@ -1427,7 +1542,6 @@ const EditRedemptionPresetModal = ({
           </Form>
         </Spin>
       </SideSheet>
-
     </>
   );
 };

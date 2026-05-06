@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	relaycommon "one-api/relay/common"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -49,52 +50,11 @@ func PreConsumeUserPayRequestQuota(userId int, count int) error {
 
 // PreConsumeUserPayRequestQuotaWithProduct consumes strictly from pay_request_user_balances.
 func PreConsumeUserPayRequestQuotaWithProduct(userId int, groupID int, count int) (productId int, err error) {
-	if userId <= 0 {
-		return 0, errors.New("userId 无效")
+	allocations, err := DecreaseUserPayRequestQuotaWithAllocations(userId, groupID, count)
+	if err != nil {
+		return 0, err
 	}
-	if count <= 0 {
-		return 0, errors.New("count 无效")
-	}
-
-	err = DB.Transaction(func(tx *gorm.DB) error {
-		if groupID > 0 {
-			foundProductId, ok, findErr := FindUserPayRequestConsumableProductIdTx(tx, userId, groupID, count)
-			if findErr != nil {
-				return findErr
-			}
-			if ok && foundProductId != 0 {
-				var balance PayRequestUserBalance
-				if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-					Where("user_id = ? AND product_id = ?", userId, foundProductId).
-					First(&balance).Error; err != nil {
-					return err
-				}
-				if balance.RemainingRequests < count {
-					return errors.New("按次付费次数不足")
-				}
-				if err := tx.Model(&PayRequestUserBalance{}).
-					Where("id = ?", balance.Id).
-					Update("remaining_requests", gorm.Expr("remaining_requests - ?", count)).Error; err != nil {
-					return err
-				}
-				var user User
-				if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-					Select("id", "pay_request_quota", "pay_request_history_quota", "pay_request_allowed_groups").
-					Where("id = ?", userId).
-					First(&user).Error; err != nil {
-					return err
-				}
-				if _, err := syncLockedUserPayRequestSnapshotFromBalancesTx(tx, &user); err != nil {
-					return err
-				}
-				productId = foundProductId
-				return nil
-			}
-		}
-
-		return errors.New("按次付费次数不足")
-	})
-	return productId, err
+	return firstProductIDFromProductAllocations(allocations), nil
 }
 
 func ReturnUserPayRequestQuota(userId int, count int) error {
@@ -131,38 +91,10 @@ func ReturnUserPayRequestQuotaWithProduct(userId int, productId int, count int) 
 		return errors.New("count 无效")
 	}
 
-	return DB.Transaction(func(tx *gorm.DB) error {
-		if productId != 0 {
-			var balance PayRequestUserBalance
-			err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-				Where("user_id = ? AND product_id = ?", userId, productId).
-				First(&balance).Error
-			if err == nil {
-				if balance.RemainingRequests < 0 {
-					return errors.New("remaining_requests 状态错误")
-				}
-				if err := tx.Model(&PayRequestUserBalance{}).
-					Where("id = ?", balance.Id).
-					Update("remaining_requests", gorm.Expr("remaining_requests + ?", count)).Error; err != nil {
-					return err
-				}
-				var user User
-				if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-					Select("id", "pay_request_quota", "pay_request_history_quota", "pay_request_allowed_groups").
-					Where("id = ?", userId).
-					First(&user).Error; err != nil {
-					return err
-				}
-				if _, err := syncLockedUserPayRequestSnapshotFromBalancesTx(tx, &user); err != nil {
-					return err
-				}
-				return nil
-			}
-			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return err
-			}
-		}
-
+	if productId == 0 {
 		return errors.New("按次付费商品未指定，无法返还次数")
+	}
+	return ReturnUserPayRequestQuotaWithAllocations(userId, []relaycommon.ProductQuotaAllocation{
+		{ProductId: productId, Quota: count},
 	})
 }

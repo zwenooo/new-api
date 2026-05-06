@@ -78,6 +78,8 @@ const OperationSetting = () => {
     AutomaticSwitchKeywords: '',
     AutomaticSwitchStatusCodeWhitelist: '',
     AutomaticSwitchMaxRetries: 5,
+    ResponsesCapacityRetryEnabled: false,
+    ResponsesCapacityRetryKeywords: '',
     'monitor_setting.auto_test_channel_enabled': false,
     'monitor_setting.auto_test_channel_minutes': 10,
     'monitor_setting.service_status_default_range_days': 30,

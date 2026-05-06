@@ -157,11 +157,23 @@ const CardTable = ({
       }
     };
 
+    const customCardProps =
+      typeof tableProps?.onRow === 'function'
+        ? tableProps.onRow(record, index) || {}
+        : {};
+    const {
+      className: customCardClassName,
+      style: customCardStyle,
+      ...restCardProps
+    } = customCardProps;
+
     return (
       <Card
         key={rowKeyVal}
-        className='!rounded-2xl shadow-sm'
+        className={`!rounded-2xl shadow-sm ${customCardClassName || ''}`}
+        style={customCardStyle}
         data-row-key={rowKeyVal}
+        {...restCardProps}
       >
         {columns.map((col, colIdx) => {
           if (
@@ -176,27 +188,25 @@ const CardTable = ({
             ? col.render(record[col.dataIndex], record, index)
             : record[col.dataIndex];
 
-          return (
-            title ? (
-              <div
-                key={col.key || colIdx}
-                className='flex justify-between items-start py-1 border-b last:border-b-0 border-dashed'
-                style={{ borderColor: 'var(--semi-color-border)' }}
-              >
-                <span className='font-medium text-gray-600 mr-2 whitespace-nowrap select-none'>
-                  {title}
-                </span>
-                <div className='flex-1 break-all flex justify-end items-center gap-1'>
-                  {cellContent !== undefined && cellContent !== null
-                    ? cellContent
-                    : '-'}
-                </div>
+          return title ? (
+            <div
+              key={col.key || colIdx}
+              className='flex justify-between items-start py-1 border-b last:border-b-0 border-dashed'
+              style={{ borderColor: 'var(--semi-color-border)' }}
+            >
+              <span className='font-medium text-gray-600 mr-2 whitespace-nowrap select-none'>
+                {title}
+              </span>
+              <div className='flex-1 break-all flex justify-end items-center gap-1'>
+                {cellContent !== undefined && cellContent !== null
+                  ? cellContent
+                  : '-'}
               </div>
-            ) : (
-              <div key={col.key || colIdx} className='mt-2 flex justify-end'>
-                {cellContent}
-              </div>
-            )
+            </div>
+          ) : (
+            <div key={col.key || colIdx} className='mt-2 flex justify-end'>
+              {cellContent}
+            </div>
           );
         })}
 

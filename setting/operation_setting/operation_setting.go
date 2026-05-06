@@ -29,6 +29,8 @@ var AutomaticSwitchKeywords = []string{}
 var AutomaticSwitchStatusCodeWhitelist = []int{}
 var AutomaticSwitchStatusCodeWhitelistSet = map[int]struct{}{}
 var AutomaticSwitchMaxRetries = 5
+var ResponsesCapacityRetryEnabled = false
+var ResponsesCapacityRetryKeywords = []string{}
 
 func AutomaticDisableKeywordsToString() string {
 	entries := make([]string, 0, len(AutomaticDisableKeywords))
@@ -62,6 +64,18 @@ func AutomaticSwitchStatusCodeWhitelistToString() string {
 	entries := make([]string, 0, len(AutomaticSwitchStatusCodeWhitelist))
 	for _, statusCode := range AutomaticSwitchStatusCodeWhitelist {
 		entries = append(entries, strconv.Itoa(statusCode))
+	}
+	return strings.Join(entries, "\n")
+}
+
+func ResponsesCapacityRetryKeywordsToString() string {
+	entries := make([]string, 0, len(ResponsesCapacityRetryKeywords))
+	for _, keyword := range ResponsesCapacityRetryKeywords {
+		cleaned := strings.TrimSpace(keyword)
+		if cleaned == "" {
+			continue
+		}
+		entries = append(entries, cleaned)
 	}
 	return strings.Join(entries, "\n")
 }
@@ -130,6 +144,22 @@ func AutomaticSwitchKeywordsFromString(s string) {
 		}
 
 		AutomaticSwitchKeywords = append(AutomaticSwitchKeywords, keyword)
+	}
+}
+
+func ResponsesCapacityRetryKeywordsFromString(s string) {
+	ResponsesCapacityRetryKeywords = []string{}
+	seen := make(map[string]struct{})
+	for _, raw := range strings.Split(s, "\n") {
+		keyword := strings.ToLower(strings.TrimSpace(raw))
+		if keyword == "" {
+			continue
+		}
+		if _, exists := seen[keyword]; exists {
+			continue
+		}
+		seen[keyword] = struct{}{}
+		ResponsesCapacityRetryKeywords = append(ResponsesCapacityRetryKeywords, keyword)
 	}
 }
 

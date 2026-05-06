@@ -183,9 +183,13 @@ func NormalizePaygProducts(products []PaygProduct) ([]PaygProduct, error) {
 				return nil, err
 			}
 			if len(normalizedIDs) == 0 {
-				return nil, errors.New("按量付费商品可用分组不能为空")
+				if p.Enabled {
+					return nil, errors.New("按量付费商品可用分组不能为空")
+				}
+				p.AllowedGroupIds = nil
+			} else {
+				p.AllowedGroupIds = normalizedIDs
 			}
-			p.AllowedGroupIds = normalizedIDs
 			p.AllowedGroups = nil
 		} else {
 			// Legacy-only compatibility
@@ -194,9 +198,13 @@ func NormalizePaygProducts(products []PaygProduct) ([]PaygProduct, error) {
 				return nil, err
 			}
 			if len(normalizedGroups) == 0 {
-				return nil, errors.New("按量付费商品可用分组不能为空")
+				if p.Enabled {
+					return nil, errors.New("按量付费商品可用分组不能为空")
+				}
+				p.AllowedGroups = nil
+			} else {
+				p.AllowedGroups = normalizedGroups
 			}
-			p.AllowedGroups = normalizedGroups
 		}
 		out = append(out, p)
 	}
@@ -260,9 +268,13 @@ func NormalizePayRequestProducts(products []PayRequestProduct) ([]PayRequestProd
 				return nil, err
 			}
 			if len(normalizedIDs) == 0 {
-				return nil, errors.New("按次付费商品可用分组不能为空")
+				if p.Enabled {
+					return nil, errors.New("按次付费商品可用分组不能为空")
+				}
+				p.AllowedGroupIds = nil
+			} else {
+				p.AllowedGroupIds = normalizedIDs
 			}
-			p.AllowedGroupIds = normalizedIDs
 			p.AllowedGroups = nil
 		} else {
 			// Legacy-only compatibility
@@ -271,9 +283,13 @@ func NormalizePayRequestProducts(products []PayRequestProduct) ([]PayRequestProd
 				return nil, err
 			}
 			if len(normalizedGroups) == 0 {
-				return nil, errors.New("按次付费商品可用分组不能为空")
+				if p.Enabled {
+					return nil, errors.New("按次付费商品可用分组不能为空")
+				}
+				p.AllowedGroups = nil
+			} else {
+				p.AllowedGroups = normalizedGroups
 			}
-			p.AllowedGroups = normalizedGroups
 		}
 		out = append(out, p)
 	}
@@ -337,9 +353,13 @@ func NormalizePayTokenProducts(products []PayTokenProduct) ([]PayTokenProduct, e
 				return nil, err
 			}
 			if len(normalizedIDs) == 0 {
-				return nil, errors.New("按token付费商品可用分组不能为空")
+				if p.Enabled {
+					return nil, errors.New("按token付费商品可用分组不能为空")
+				}
+				p.AllowedGroupIds = nil
+			} else {
+				p.AllowedGroupIds = normalizedIDs
 			}
-			p.AllowedGroupIds = normalizedIDs
 			p.AllowedGroups = nil
 		} else {
 			// Legacy-only compatibility
@@ -348,9 +368,13 @@ func NormalizePayTokenProducts(products []PayTokenProduct) ([]PayTokenProduct, e
 				return nil, err
 			}
 			if len(normalizedGroups) == 0 {
-				return nil, errors.New("按token付费商品可用分组不能为空")
+				if p.Enabled {
+					return nil, errors.New("按token付费商品可用分组不能为空")
+				}
+				p.AllowedGroups = nil
+			} else {
+				p.AllowedGroups = normalizedGroups
 			}
-			p.AllowedGroups = normalizedGroups
 		}
 		out = append(out, p)
 	}

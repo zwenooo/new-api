@@ -17,7 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
 import {
@@ -47,10 +54,10 @@ import {
   Modal,
   Popconfirm,
   SideSheet,
-  Space,
   Spin,
   Switch,
   Tag,
+  Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
 import {
@@ -62,6 +69,7 @@ import {
   IconSetting,
   IconTreeTriangleDown,
 } from '@douyinfe/semi-icons';
+import { GripVertical } from 'lucide-react';
 
 const { Text, Title } = Typography;
 
@@ -82,8 +90,10 @@ const normalizeGroupIds = (rawIds) => {
 };
 
 const PRODUCT_MANAGEMENT_PRESET_API_BASE = '/api/product_management/presets';
-const PRODUCT_MANAGEMENT_PAY_PRODUCT_API_BASE = '/api/product_management/pay_products';
+const PRODUCT_MANAGEMENT_PAY_PRODUCT_API_BASE =
+  '/api/product_management/pay_products';
 const PRODUCT_MANAGEMENT_OPTION_API_BASE = '/api/product_management/option';
+const PRODUCT_MANAGEMENT_REORDER_API_BASE = '/api/product_management/reorder';
 const PRODUCT_MANAGEMENT_HIDE_ARCHIVED_OPTION_KEY =
   'ProductManagementHideArchivedEnabled';
 
@@ -117,6 +127,102 @@ const normalizeNonNegativeNumberValue = (raw) => {
   return num;
 };
 
+const cloneProductRows = (rows) =>
+  (Array.isArray(rows) ? rows : []).map((item) => ({
+    ...item,
+    raw: item?.raw ? { ...item.raw } : item?.raw,
+  }));
+
+const productRowKeyOf = (row) => String(row?.row_key || '');
+
+const areProductRowOrdersEqual = (left, right) => {
+  const l = Array.isArray(left) ? left : [];
+  const r = Array.isArray(right) ? right : [];
+  if (l.length !== r.length) return false;
+  for (let index = 0; index < l.length; index += 1) {
+    if (productRowKeyOf(l[index]) !== productRowKeyOf(r[index])) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const areProductRowSortOrdersEqual = (left, right) => {
+  const sortByKey = new Map(
+    (Array.isArray(left) ? left : []).map((row) => [
+      productRowKeyOf(row),
+      Number(row?.sort_order ?? 0) || 0,
+    ]),
+  );
+  const next = Array.isArray(right) ? right : [];
+  if (sortByKey.size !== next.length) return false;
+  return next.every(
+    (row) =>
+      sortByKey.get(productRowKeyOf(row)) ===
+      (Number(row?.sort_order ?? 0) || 0),
+  );
+};
+
+const reorderProductRowsBefore = (rows, sourceKey, targetKey) => {
+  const list = Array.isArray(rows) ? rows : [];
+  const src = String(sourceKey || '');
+  if (!src) return list.slice();
+  const next = list.filter((row) => productRowKeyOf(row) !== src);
+  const source = list.find((row) => productRowKeyOf(row) === src);
+  if (!source) return list.slice();
+  const dst = String(targetKey || '');
+  const targetIndex = dst
+    ? next.findIndex((row) => productRowKeyOf(row) === dst)
+    : -1;
+  if (targetIndex < 0) {
+    next.push(source);
+    return next;
+  }
+  next.splice(targetIndex, 0, source);
+  return next;
+};
+
+const mergeReorderedVisibleProductRows = (rows, visibleRows) => {
+  const visible = Array.isArray(visibleRows) ? visibleRows : [];
+  if (visible.length === 0) {
+    return Array.isArray(rows) ? rows.slice() : [];
+  }
+  const visibleByKey = new Map(
+    visible.map((row) => [productRowKeyOf(row), row]),
+  );
+  let visibleIndex = 0;
+  return (Array.isArray(rows) ? rows : []).map((row) => {
+    if (!visibleByKey.has(productRowKeyOf(row))) {
+      return row;
+    }
+    const nextVisible = visible[visibleIndex] || row;
+    visibleIndex += 1;
+    return nextVisible;
+  });
+};
+
+const findProductRowNode = (rowRefs, rowKey) => {
+  const key = String(rowKey || '');
+  if (!key) return null;
+  const fromRef = rowRefs?.current?.get(key);
+  if (fromRef) return fromRef;
+  if (typeof document === 'undefined') return null;
+  return document.querySelector(`[data-product-row-key="${key}"]`);
+};
+
+const withSequentialSortOrders = (rows) => {
+  const list = Array.isArray(rows) ? rows : [];
+  const step = 10;
+  const total = list.length;
+  return list.map((row, index) => ({
+    ...row,
+    sort_order: (total - index) * step,
+    raw: row?.raw
+      ? { ...row.raw, sort_order: (total - index) * step }
+      : row?.raw,
+  }));
+};
+
 const normalizePaygProducts = (rawProducts) => {
   if (!Array.isArray(rawProducts)) return [];
   const out = [];
@@ -134,13 +240,14 @@ const normalizePaygProducts = (rawProducts) => {
     const enabled = archived ? false : item?.enabled !== false;
 
     const sortRaw = Number(item?.sort_order ?? 0);
-    const sortOrder = Number.isFinite(sortRaw) ? Math.max(0, Math.floor(sortRaw)) : 0;
+    const sortOrder = Number.isFinite(sortRaw)
+      ? Math.max(0, Math.floor(sortRaw))
+      : 0;
 
     const stock = normalizeStockValue(item?.stock);
     if (stock === undefined) return;
 
     const allowedGroupIds = normalizeGroupIds(item?.allowed_group_ids);
-    if (allowedGroupIds.length === 0) return;
 
     seen.add(id);
     out.push({
@@ -174,13 +281,14 @@ const normalizePayRequestProducts = (rawProducts) => {
     const enabled = archived ? false : item?.enabled !== false;
 
     const sortRaw = Number(item?.sort_order ?? 0);
-    const sortOrder = Number.isFinite(sortRaw) ? Math.max(0, Math.floor(sortRaw)) : 0;
+    const sortOrder = Number.isFinite(sortRaw)
+      ? Math.max(0, Math.floor(sortRaw))
+      : 0;
 
     const stock = normalizeStockValue(item?.stock);
     if (stock === undefined) return;
 
     const allowedGroupIds = normalizeGroupIds(item?.allowed_group_ids);
-    if (allowedGroupIds.length === 0) return;
 
     seen.add(id);
     out.push({
@@ -214,13 +322,14 @@ const normalizePayTokenProducts = (rawProducts) => {
     const enabled = archived ? false : item?.enabled !== false;
 
     const sortRaw = Number(item?.sort_order ?? 0);
-    const sortOrder = Number.isFinite(sortRaw) ? Math.max(0, Math.floor(sortRaw)) : 0;
+    const sortOrder = Number.isFinite(sortRaw)
+      ? Math.max(0, Math.floor(sortRaw))
+      : 0;
 
     const stock = normalizeStockValue(item?.stock);
     if (stock === undefined) return;
 
     const allowedGroupIds = normalizeGroupIds(item?.allowed_group_ids);
-    if (allowedGroupIds.length === 0) return;
 
     seen.add(id);
     out.push({
@@ -265,7 +374,9 @@ const normalizeManagedGroupDailyLimits = (rawLimits) => {
 
     out.push({
       group_id: groupId,
-      daily_quota_limit: normalizeNonNegativeNumberValue(item?.daily_quota_limit ?? 0),
+      daily_quota_limit: normalizeNonNegativeNumberValue(
+        item?.daily_quota_limit ?? 0,
+      ),
     });
   });
   return out.sort((a, b) => a.group_id - b.group_id);
@@ -276,7 +387,8 @@ const normalizeManagedSubscriptionProduct = (record) => {
 
   const rawId = Number(record?.id ?? 0);
   const id = Number.isFinite(rawId) ? Math.floor(rawId) : 0;
-  const mode = inferPresetMode(record);
+  const rawMode = String(record?.mode ?? '').trim();
+  const mode = rawMode || 'subscription';
   const name = String(record?.name ?? '').trim();
   if (id <= 0 || !name) return null;
 
@@ -330,8 +442,8 @@ const normalizeManagedSubscriptionProduct = (record) => {
     mode,
     archived: record?.archived === true,
     enabled: record?.archived === true ? false : record?.enabled !== false,
-    multi_quantity_enabled: Boolean(record?.multi_quantity_enabled),
-    multi_quantity_defer_only: record?.multi_quantity_defer_only !== false,
+    multi_quantity_enabled: false,
+    multi_quantity_defer_only: true,
     sort_order: sortOrder,
     price_fen: priceFen,
     purchase_limit: purchaseLimit,
@@ -344,7 +456,9 @@ const normalizeManagedSubscriptionProduct = (record) => {
     expired_time: expiredTime,
     channel_ids: Array.isArray(record?.channel_ids) ? record.channel_ids : [],
     allowed_group_ids: normalizeGroupIds(record?.allowed_group_ids),
-    group_daily_limits: normalizeManagedGroupDailyLimits(record?.group_daily_limits),
+    group_daily_limits: normalizeManagedGroupDailyLimits(
+      record?.group_daily_limits,
+    ),
   };
 };
 
@@ -352,7 +466,10 @@ const normalizeManagedSubscriptionProducts = (records) => {
   if (!Array.isArray(records)) return [];
   return records
     .map((record) => normalizeManagedSubscriptionProduct(record))
-    .filter((record) => record && ['subscription', 'tokens', 'request'].includes(record.mode));
+    .filter(
+      (record) =>
+        record && ['subscription', 'tokens', 'request'].includes(record.mode),
+    );
 };
 
 const buildEmptyManagedSubscriptionProduct = (mode) => ({
@@ -379,8 +496,15 @@ const buildEmptyManagedSubscriptionProduct = (mode) => ({
   group_daily_limits: [],
 });
 
+const clearSubscriptionMultiQuantity = (product) => ({
+  ...(product || {}),
+  multi_quantity_enabled: false,
+  multi_quantity_defer_only: true,
+});
+
 const buildRedemptionPresetUpsertPayload = (preset, patch) => {
-  const normalizedPreset = normalizeManagedSubscriptionProduct(preset) || preset;
+  const normalizedPreset =
+    normalizeManagedSubscriptionProduct(preset) || preset;
   const mode = inferPresetMode(normalizedPreset);
   const stock = normalizeStockValue(normalizedPreset?.stock);
   const payload = {
@@ -389,10 +513,12 @@ const buildRedemptionPresetUpsertPayload = (preset, patch) => {
     description: String(normalizedPreset?.description || ''),
     mode,
     enabled:
-      normalizedPreset?.archived === true ? false : normalizedPreset?.enabled !== false,
+      normalizedPreset?.archived === true
+        ? false
+        : normalizedPreset?.enabled !== false,
     archived: normalizedPreset?.archived === true,
-    multi_quantity_enabled: Boolean(normalizedPreset?.multi_quantity_enabled),
-    multi_quantity_defer_only: normalizedPreset?.multi_quantity_defer_only !== false,
+    multi_quantity_enabled: false,
+    multi_quantity_defer_only: true,
     sort_order: Number(normalizedPreset?.sort_order) || 0,
     price_fen: Number(normalizedPreset?.price_fen) || 0,
     purchase_limit: Number(normalizedPreset?.purchase_limit) || 0,
@@ -415,6 +541,12 @@ const buildRedemptionPresetUpsertPayload = (preset, patch) => {
   }
   return { ...payload, ...(patch || {}) };
 };
+
+const ProductActionButton = ({ children, className = '', ...props }) => (
+  <Button size='small' className={`shrink-0 ${className}`} {...props}>
+    {children}
+  </Button>
+);
 
 const ProductManagement = () => {
   const { t } = useTranslation();
@@ -449,24 +581,47 @@ const ProductManagement = () => {
   const [paygSettingSheetVisible, setPaygSettingSheetVisible] = useState(false);
 
   const [payRequestProducts, setPayRequestProducts] = useState([]);
-  const [payRequestProductsSaving, setPayRequestProductsSaving] = useState(false);
-  const [payRequestProductSheetVisible, setPayRequestProductSheetVisible] = useState(false);
-  const [editingPayRequestProduct, setEditingPayRequestProduct] = useState(null);
+  const [payRequestProductsSaving, setPayRequestProductsSaving] =
+    useState(false);
+  const [payRequestProductSheetVisible, setPayRequestProductSheetVisible] =
+    useState(false);
+  const [editingPayRequestProduct, setEditingPayRequestProduct] =
+    useState(null);
 
   const [payTokenProducts, setPayTokenProducts] = useState([]);
   const [payTokenProductsSaving, setPayTokenProductsSaving] = useState(false);
-  const [payTokenProductSheetVisible, setPayTokenProductSheetVisible] = useState(false);
+  const [payTokenProductSheetVisible, setPayTokenProductSheetVisible] =
+    useState(false);
   const [editingPayTokenProduct, setEditingPayTokenProduct] = useState(null);
 
-  const [subscriptionProductsLoading, setSubscriptionProductsLoading] = useState(false);
+  const [subscriptionProductsLoading, setSubscriptionProductsLoading] =
+    useState(false);
   const [subscriptionProducts, setSubscriptionProducts] = useState([]);
   const [productManagementOptionsLoading, setProductManagementOptionsLoading] =
     useState(false);
   const [hideArchivedProducts, setHideArchivedProducts] = useState(true);
-  const [hideArchivedProductsSaving, setHideArchivedProductsSaving] = useState(false);
+  const [hideArchivedProductsSaving, setHideArchivedProductsSaving] =
+    useState(false);
+  const [productDragState, setProductDragState] = useState(null);
+  const [productDropTargetKey, setProductDropTargetKey] = useState('');
+  const [productsReordering, setProductsReordering] = useState(false);
+  const productRowsRef = useRef([]);
+  const productVisibleRowsRef = useRef([]);
+  const productDragStateRef = useRef(null);
+  const productDragPointerRef = useRef(null);
+  const productDragInitialRowsRef = useRef([]);
+  const productDragInitialVisibleRowsRef = useRef([]);
+  const productDropTargetKeyRef = useRef('');
+  const productDragHandleRef = useRef(null);
+  const persistProductOrderRef = useRef(null);
+  const productRowRefs = useRef(new Map());
+  const productDragOverlayRef = useRef(null);
+  const productDragOverlayFrameRef = useRef(0);
   const [subscriptionEditVisible, setSubscriptionEditVisible] = useState(false);
   const [editingSubscriptionProduct, setEditingSubscriptionProduct] = useState(
-    buildEmptyManagedSubscriptionProduct('subscription'),
+    clearSubscriptionMultiQuantity(
+      buildEmptyManagedSubscriptionProduct('subscription'),
+    ),
   );
   const subscriptionEditResetTimerRef = useRef(null);
   const paygProductResetTimerRef = useRef(null);
@@ -475,7 +630,8 @@ const ProductManagement = () => {
   const [revisionHistoryVisible, setRevisionHistoryVisible] = useState(false);
   const [revisionHistoryLoading, setRevisionHistoryLoading] = useState(false);
   const [revisionHistoryPreset, setRevisionHistoryPreset] = useState(null);
-  const [revisionHistoryProductType, setRevisionHistoryProductType] = useState('');
+  const [revisionHistoryProductType, setRevisionHistoryProductType] =
+    useState('');
   const [revisionHistoryItems, setRevisionHistoryItems] = useState([]);
   const [restoreRevisionVisible, setRestoreRevisionVisible] = useState(false);
   const [restoreRevisionTarget, setRestoreRevisionTarget] = useState(null);
@@ -556,7 +712,9 @@ const ProductManagement = () => {
       }
 
       const rate = Number(data?.payg_credit_usd_per_cny ?? 0);
-      const requestRate = Number(data?.pay_request_credit_requests_per_cny ?? 0);
+      const requestRate = Number(
+        data?.pay_request_credit_requests_per_cny ?? 0,
+      );
       const tokensRate = Number(data?.pay_token_credit_tokens_per_cny ?? 0);
 
       setPaygFormInitValues({
@@ -565,7 +723,9 @@ const ProductManagement = () => {
         credit_tokens_per_cny: Number.isFinite(tokensRate) ? tokensRate : 0,
       });
       setPaygProducts(normalizePaygProducts(data?.payg_products));
-      setPayRequestProducts(normalizePayRequestProducts(data?.pay_request_products));
+      setPayRequestProducts(
+        normalizePayRequestProducts(data?.pay_request_products),
+      );
       setPayTokenProducts(normalizePayTokenProducts(data?.pay_token_products));
       setPaygFormKey((k) => k + 1);
     } catch (e) {
@@ -635,7 +795,10 @@ const ProductManagement = () => {
 
   const updateOption = useCallback(
     async (key, value) => {
-      const res = await API.put(PRODUCT_MANAGEMENT_OPTION_API_BASE, { key, value });
+      const res = await API.put(PRODUCT_MANAGEMENT_OPTION_API_BASE, {
+        key,
+        value,
+      });
       const { success, message } = res.data;
       if (!success) {
         throw new Error(message || t('保存失败'));
@@ -735,7 +898,11 @@ const ProductManagement = () => {
       clearTimeout(subscriptionEditResetTimerRef.current);
       subscriptionEditResetTimerRef.current = null;
     }
-    setEditingSubscriptionProduct(buildEmptyManagedSubscriptionProduct('subscription'));
+    setEditingSubscriptionProduct(
+      clearSubscriptionMultiQuantity(
+        buildEmptyManagedSubscriptionProduct('subscription'),
+      ),
+    );
     setSubscriptionEditVisible(true);
   }, [isRootUser, t]);
 
@@ -748,7 +915,11 @@ const ProductManagement = () => {
       clearTimeout(subscriptionEditResetTimerRef.current);
       subscriptionEditResetTimerRef.current = null;
     }
-    setEditingSubscriptionProduct(buildEmptyManagedSubscriptionProduct('tokens'));
+    setEditingSubscriptionProduct(
+      clearSubscriptionMultiQuantity(
+        buildEmptyManagedSubscriptionProduct('tokens'),
+      ),
+    );
     setSubscriptionEditVisible(true);
   }, [isRootUser, t]);
 
@@ -761,7 +932,11 @@ const ProductManagement = () => {
       clearTimeout(subscriptionEditResetTimerRef.current);
       subscriptionEditResetTimerRef.current = null;
     }
-    setEditingSubscriptionProduct(buildEmptyManagedSubscriptionProduct('request'));
+    setEditingSubscriptionProduct(
+      clearSubscriptionMultiQuantity(
+        buildEmptyManagedSubscriptionProduct('request'),
+      ),
+    );
     setSubscriptionEditVisible(true);
   }, [isRootUser, t]);
 
@@ -778,7 +953,7 @@ const ProductManagement = () => {
       const raw =
         normalizeManagedSubscriptionProduct(preset) ||
         buildEmptyManagedSubscriptionProduct('subscription');
-      setEditingSubscriptionProduct(raw);
+      setEditingSubscriptionProduct(clearSubscriptionMultiQuantity(raw));
       setSubscriptionEditVisible(true);
     },
     [isRootUser, t],
@@ -791,14 +966,19 @@ const ProductManagement = () => {
     }
     subscriptionEditResetTimerRef.current = setTimeout(
       () =>
-        setEditingSubscriptionProduct(buildEmptyManagedSubscriptionProduct('subscription')),
+        setEditingSubscriptionProduct(
+          clearSubscriptionMultiQuantity(
+            buildEmptyManagedSubscriptionProduct('subscription'),
+          ),
+        ),
       300,
     );
   }, []);
 
   const handleSubscriptionProductSaved = useCallback(
     (savedProduct) => {
-      const normalizedProduct = normalizeManagedSubscriptionProduct(savedProduct);
+      const normalizedProduct =
+        normalizeManagedSubscriptionProduct(savedProduct);
       if (!normalizedProduct || Number(normalizedProduct?.id ?? 0) <= 0) {
         void loadSubscriptionProducts();
         return;
@@ -827,6 +1007,17 @@ const ProductManagement = () => {
     [t],
   );
 
+  const productTableBusy =
+    !isRootUser ||
+    productManagementOptionsLoading ||
+    hideArchivedProductsSaving ||
+    paygProductsSaving ||
+    paygLoading ||
+    payRequestProductsSaving ||
+    payTokenProductsSaving ||
+    subscriptionProductsLoading ||
+    productsReordering;
+
   const buildProductMetaLabels = useCallback(
     (type, raw) => {
       const meta = [];
@@ -849,23 +1040,36 @@ const ProductManagement = () => {
         meta.push(`${t('售价')}: ${renderCnyFen(priceFen)}`);
       }
 
+      const sortOrder = Number(raw?.sort_order ?? 0) || 0;
+      meta.push(`${t('排序')}: ${sortOrder}`);
+
       if (type === 'subscription') {
         const quota = Number(raw?.quota ?? 0) || 0;
-        meta.push(`${t('额度')}: ${quota <= 0 ? t('无限') : renderQuota(quota)}`);
+        meta.push(
+          `${t('额度')}: ${quota <= 0 ? t('无限') : renderQuota(quota)}`,
+        );
         const dailyLimit = Number(raw?.daily_quota_limit ?? 0) || 0;
         meta.push(
-          `${t('日限')}: ${dailyLimit <= 0 ? t('无限') : renderQuota(dailyLimit)}`,
+          `${t('日限')}: ${
+            dailyLimit <= 0 ? t('无限') : renderQuota(dailyLimit)
+          }`,
         );
       } else if (type === 'tokens') {
         const quota = Number(raw?.quota ?? 0) || 0;
-        meta.push(`${t('Tokens')}: ${quota <= 0 ? t('无限') : quota.toLocaleString()}`);
+        meta.push(
+          `${t('Tokens')}: ${quota <= 0 ? t('无限') : quota.toLocaleString()}`,
+        );
         const dailyLimit = Number(raw?.daily_quota_limit ?? 0) || 0;
         meta.push(
-          `${t('日限')}: ${dailyLimit <= 0 ? t('无限') : dailyLimit.toLocaleString()}`,
+          `${t('日限')}: ${
+            dailyLimit <= 0 ? t('无限') : dailyLimit.toLocaleString()
+          }`,
         );
       } else if (type === 'request') {
         const totalCount = Number(raw?.quota ?? 0) || 0;
-        meta.push(`${t('总次数')}: ${totalCount <= 0 ? t('无限') : totalCount}`);
+        meta.push(
+          `${t('总次数')}: ${totalCount <= 0 ? t('无限') : totalCount}`,
+        );
         const dailyCount = Number(raw?.daily_request_limit ?? 0) || 0;
         meta.push(`${t('日限')}: ${dailyCount <= 0 ? t('无限') : dailyCount}`);
       }
@@ -891,7 +1095,9 @@ const ProductManagement = () => {
 
   const buildGroupDailyLimitLabels = useCallback(
     (type, raw) => {
-      const items = Array.isArray(raw?.group_daily_limits) ? raw.group_daily_limits : [];
+      const items = Array.isArray(raw?.group_daily_limits)
+        ? raw.group_daily_limits
+        : [];
       return items
         .map((item) => {
           const gid = Number(item?.group_id ?? 0) || 0;
@@ -901,8 +1107,8 @@ const ProductManagement = () => {
             limit <= 0
               ? t('无限')
               : type === 'tokens'
-                ? limit.toLocaleString()
-                : renderQuota(limit);
+              ? limit.toLocaleString()
+              : renderQuota(limit);
           return `${groupLabelById[gid] || t('未知分组')}: ${limitLabel}`;
         })
         .filter(Boolean);
@@ -1211,13 +1417,17 @@ const ProductManagement = () => {
     }, 300);
   };
 
-  const persistPaygProducts = async (nextProducts) => {
+  const persistPaygProducts = async (nextProducts, options = {}) => {
+    const silentSuccess = options?.silentSuccess === true;
     if (!isRootUser) {
       showError(t('需要 Root 权限'));
       return false;
     }
     const normalized = normalizePaygProducts(nextProducts);
-    if (normalized.length !== (Array.isArray(nextProducts) ? nextProducts.length : 0)) {
+    if (
+      normalized.length !==
+      (Array.isArray(nextProducts) ? nextProducts.length : 0)
+    ) {
       showError(t('按量付费商品配置不合法'));
       return false;
     }
@@ -1226,7 +1436,9 @@ const ProductManagement = () => {
     try {
       await updateOption('payg.products', normalized);
       setPaygProducts(normalized);
-      showSuccess(t('保存成功'));
+      if (!silentSuccess) {
+        showSuccess(t('保存成功'));
+      }
       return true;
     } catch (e) {
       showError(e?.message || t('保存失败'));
@@ -1247,7 +1459,9 @@ const ProductManagement = () => {
     const archived = Boolean(values?.archived);
     const enabled = archived ? false : Boolean(values?.enabled);
     const sortRaw = Number(values?.sort_order ?? 0);
-    const sortOrder = Number.isFinite(sortRaw) ? Math.max(0, Math.floor(sortRaw)) : 0;
+    const sortOrder = Number.isFinite(sortRaw)
+      ? Math.max(0, Math.floor(sortRaw))
+      : 0;
     const stock = normalizeStockValue(values?.stock);
     const allowedGroupIds = normalizeGroupIds(values?.allowed_group_ids || []);
 
@@ -1259,7 +1473,7 @@ const ProductManagement = () => {
       showError(t('库存必须为大于等于 0 的整数，留空表示无限制'));
       return;
     }
-    if (allowedGroupIds.length === 0) {
+    if (!archived && enabled && allowedGroupIds.length === 0) {
       showError(t('可用分组不能为空'));
       return;
     }
@@ -1293,17 +1507,20 @@ const ProductManagement = () => {
   const deletePaygProduct = async (id) => {
     const pid = Number(id ?? 0);
     if (!Number.isFinite(pid) || pid <= 0) return;
-    const nextProducts = (Array.isArray(paygProducts) ? paygProducts : []).filter(
-      (p) => Number(p?.id ?? 0) !== pid,
-    );
+    const nextProducts = (
+      Array.isArray(paygProducts) ? paygProducts : []
+    ).filter((p) => Number(p?.id ?? 0) !== pid);
     await persistPaygProducts(nextProducts);
   };
 
   const togglePaygProductEnabled = async (product, enabled) => {
     const pid = Number(product?.id ?? 0);
     if (!Number.isFinite(pid) || pid <= 0) return;
-    const nextProducts = (Array.isArray(paygProducts) ? paygProducts : []).map((p) =>
-      Number(p?.id ?? 0) === pid ? { ...p, enabled: Boolean(enabled) } : p,
+    const nextProducts = (Array.isArray(paygProducts) ? paygProducts : []).map(
+      (p) =>
+        Number(p?.id ?? 0) === pid
+          ? { ...p, enabled: Boolean(enabled), archived: false }
+          : p,
     );
     await persistPaygProducts(nextProducts);
   };
@@ -1312,14 +1529,15 @@ const ProductManagement = () => {
     const pid = Number(product?.id ?? 0);
     if (!Number.isFinite(pid) || pid <= 0) return;
     const nextArchived = Boolean(archived);
-    const nextProducts = (Array.isArray(paygProducts) ? paygProducts : []).map((p) =>
-      Number(p?.id ?? 0) === pid
-        ? {
-            ...p,
-            archived: nextArchived,
-            enabled: nextArchived ? false : p?.enabled !== false,
-          }
-        : p,
+    const nextProducts = (Array.isArray(paygProducts) ? paygProducts : []).map(
+      (p) =>
+        Number(p?.id ?? 0) === pid
+          ? {
+              ...p,
+              archived: nextArchived,
+              enabled: nextArchived ? false : p?.enabled !== false,
+            }
+          : p,
     );
     await persistPaygProducts(nextProducts);
   };
@@ -1405,13 +1623,17 @@ const ProductManagement = () => {
     }, 300);
   };
 
-  const persistPayRequestProducts = async (nextProducts) => {
+  const persistPayRequestProducts = async (nextProducts, options = {}) => {
+    const silentSuccess = options?.silentSuccess === true;
     if (!isRootUser) {
       showError(t('需要 Root 权限'));
       return false;
     }
     const normalized = normalizePayRequestProducts(nextProducts);
-    if (normalized.length !== (Array.isArray(nextProducts) ? nextProducts.length : 0)) {
+    if (
+      normalized.length !==
+      (Array.isArray(nextProducts) ? nextProducts.length : 0)
+    ) {
       showError(t('按次付费商品配置不合法'));
       return false;
     }
@@ -1420,7 +1642,9 @@ const ProductManagement = () => {
     try {
       await updateOption('payg.pay_request_products', normalized);
       setPayRequestProducts(normalized);
-      showSuccess(t('保存成功'));
+      if (!silentSuccess) {
+        showSuccess(t('保存成功'));
+      }
       return true;
     } catch (e) {
       showError(e?.message || t('保存失败'));
@@ -1441,7 +1665,9 @@ const ProductManagement = () => {
     const archived = Boolean(values?.archived);
     const enabled = archived ? false : Boolean(values?.enabled);
     const sortRaw = Number(values?.sort_order ?? 0);
-    const sortOrder = Number.isFinite(sortRaw) ? Math.max(0, Math.floor(sortRaw)) : 0;
+    const sortOrder = Number.isFinite(sortRaw)
+      ? Math.max(0, Math.floor(sortRaw))
+      : 0;
     const stock = normalizeStockValue(values?.stock);
     const allowedGroupIds = normalizeGroupIds(values?.allowed_group_ids || []);
 
@@ -1453,7 +1679,7 @@ const ProductManagement = () => {
       showError(t('库存必须为大于等于 0 的整数，留空表示无限制'));
       return;
     }
-    if (allowedGroupIds.length === 0) {
+    if (!archived && enabled && allowedGroupIds.length === 0) {
       showError(t('可用分组不能为空'));
       return;
     }
@@ -1469,14 +1695,17 @@ const ProductManagement = () => {
       allowed_group_ids: allowedGroupIds,
     };
 
-    const exists = (Array.isArray(payRequestProducts) ? payRequestProducts : []).some(
-      (p) => Number(p?.id ?? 0) === id,
-    );
+    const exists = (
+      Array.isArray(payRequestProducts) ? payRequestProducts : []
+    ).some((p) => Number(p?.id ?? 0) === id);
     const nextProducts = exists
-      ? (Array.isArray(payRequestProducts) ? payRequestProducts : []).map((p) =>
-          Number(p?.id ?? 0) === id ? product : p,
+      ? (Array.isArray(payRequestProducts) ? payRequestProducts : []).map(
+          (p) => (Number(p?.id ?? 0) === id ? product : p),
         )
-      : [...(Array.isArray(payRequestProducts) ? payRequestProducts : []), product];
+      : [
+          ...(Array.isArray(payRequestProducts) ? payRequestProducts : []),
+          product,
+        ];
 
     const ok = await persistPayRequestProducts(nextProducts);
     if (ok) {
@@ -1487,17 +1716,21 @@ const ProductManagement = () => {
   const deletePayRequestProduct = async (id) => {
     const pid = Number(id ?? 0);
     if (!Number.isFinite(pid) || pid <= 0) return;
-    const nextProducts = (Array.isArray(payRequestProducts) ? payRequestProducts : []).filter(
-      (p) => Number(p?.id ?? 0) !== pid,
-    );
+    const nextProducts = (
+      Array.isArray(payRequestProducts) ? payRequestProducts : []
+    ).filter((p) => Number(p?.id ?? 0) !== pid);
     await persistPayRequestProducts(nextProducts);
   };
 
   const togglePayRequestProductEnabled = async (product, enabled) => {
     const pid = Number(product?.id ?? 0);
     if (!Number.isFinite(pid) || pid <= 0) return;
-    const nextProducts = (Array.isArray(payRequestProducts) ? payRequestProducts : []).map((p) =>
-      Number(p?.id ?? 0) === pid ? { ...p, enabled: Boolean(enabled) } : p,
+    const nextProducts = (
+      Array.isArray(payRequestProducts) ? payRequestProducts : []
+    ).map((p) =>
+      Number(p?.id ?? 0) === pid
+        ? { ...p, enabled: Boolean(enabled), archived: false }
+        : p,
     );
     await persistPayRequestProducts(nextProducts);
   };
@@ -1506,15 +1739,16 @@ const ProductManagement = () => {
     const pid = Number(product?.id ?? 0);
     if (!Number.isFinite(pid) || pid <= 0) return;
     const nextArchived = Boolean(archived);
-    const nextProducts = (Array.isArray(payRequestProducts) ? payRequestProducts : []).map(
-      (p) =>
-        Number(p?.id ?? 0) === pid
-          ? {
-              ...p,
-              archived: nextArchived,
-              enabled: nextArchived ? false : p?.enabled !== false,
-            }
-          : p,
+    const nextProducts = (
+      Array.isArray(payRequestProducts) ? payRequestProducts : []
+    ).map((p) =>
+      Number(p?.id ?? 0) === pid
+        ? {
+            ...p,
+            archived: nextArchived,
+            enabled: nextArchived ? false : p?.enabled !== false,
+          }
+        : p,
     );
     await persistPayRequestProducts(nextProducts);
   };
@@ -1600,13 +1834,17 @@ const ProductManagement = () => {
     }, 300);
   };
 
-  const persistPayTokenProducts = async (nextProducts) => {
+  const persistPayTokenProducts = async (nextProducts, options = {}) => {
+    const silentSuccess = options?.silentSuccess === true;
     if (!isRootUser) {
       showError(t('需要 Root 权限'));
       return false;
     }
     const normalized = normalizePayTokenProducts(nextProducts);
-    if (normalized.length !== (Array.isArray(nextProducts) ? nextProducts.length : 0)) {
+    if (
+      normalized.length !==
+      (Array.isArray(nextProducts) ? nextProducts.length : 0)
+    ) {
       showError(t('按token付费商品配置不合法'));
       return false;
     }
@@ -1615,7 +1853,9 @@ const ProductManagement = () => {
     try {
       await updateOption('payg.pay_token_products', normalized);
       setPayTokenProducts(normalized);
-      showSuccess(t('保存成功'));
+      if (!silentSuccess) {
+        showSuccess(t('保存成功'));
+      }
       return true;
     } catch (e) {
       showError(e?.message || t('保存失败'));
@@ -1636,7 +1876,9 @@ const ProductManagement = () => {
     const archived = Boolean(values?.archived);
     const enabled = archived ? false : Boolean(values?.enabled);
     const sortRaw = Number(values?.sort_order ?? 0);
-    const sortOrder = Number.isFinite(sortRaw) ? Math.max(0, Math.floor(sortRaw)) : 0;
+    const sortOrder = Number.isFinite(sortRaw)
+      ? Math.max(0, Math.floor(sortRaw))
+      : 0;
     const stock = normalizeStockValue(values?.stock);
     const allowedGroupIds = normalizeGroupIds(values?.allowed_group_ids || []);
 
@@ -1648,7 +1890,7 @@ const ProductManagement = () => {
       showError(t('库存必须为大于等于 0 的整数，留空表示无限制'));
       return;
     }
-    if (allowedGroupIds.length === 0) {
+    if (!archived && enabled && allowedGroupIds.length === 0) {
       showError(t('可用分组不能为空'));
       return;
     }
@@ -1664,9 +1906,9 @@ const ProductManagement = () => {
       allowed_group_ids: allowedGroupIds,
     };
 
-    const exists = (Array.isArray(payTokenProducts) ? payTokenProducts : []).some(
-      (p) => Number(p?.id ?? 0) === id,
-    );
+    const exists = (
+      Array.isArray(payTokenProducts) ? payTokenProducts : []
+    ).some((p) => Number(p?.id ?? 0) === id);
     const nextProducts = exists
       ? (Array.isArray(payTokenProducts) ? payTokenProducts : []).map((p) =>
           Number(p?.id ?? 0) === id ? product : p,
@@ -1682,17 +1924,21 @@ const ProductManagement = () => {
   const deletePayTokenProduct = async (id) => {
     const pid = Number(id ?? 0);
     if (!Number.isFinite(pid) || pid <= 0) return;
-    const nextProducts = (Array.isArray(payTokenProducts) ? payTokenProducts : []).filter(
-      (p) => Number(p?.id ?? 0) !== pid,
-    );
+    const nextProducts = (
+      Array.isArray(payTokenProducts) ? payTokenProducts : []
+    ).filter((p) => Number(p?.id ?? 0) !== pid);
     await persistPayTokenProducts(nextProducts);
   };
 
   const togglePayTokenProductEnabled = async (product, enabled) => {
     const pid = Number(product?.id ?? 0);
     if (!Number.isFinite(pid) || pid <= 0) return;
-    const nextProducts = (Array.isArray(payTokenProducts) ? payTokenProducts : []).map((p) =>
-      Number(p?.id ?? 0) === pid ? { ...p, enabled: Boolean(enabled) } : p,
+    const nextProducts = (
+      Array.isArray(payTokenProducts) ? payTokenProducts : []
+    ).map((p) =>
+      Number(p?.id ?? 0) === pid
+        ? { ...p, enabled: Boolean(enabled), archived: false }
+        : p,
     );
     await persistPayTokenProducts(nextProducts);
   };
@@ -1701,7 +1947,9 @@ const ProductManagement = () => {
     const pid = Number(product?.id ?? 0);
     if (!Number.isFinite(pid) || pid <= 0) return;
     const nextArchived = Boolean(archived);
-    const nextProducts = (Array.isArray(payTokenProducts) ? payTokenProducts : []).map((p) =>
+    const nextProducts = (
+      Array.isArray(payTokenProducts) ? payTokenProducts : []
+    ).map((p) =>
       Number(p?.id ?? 0) === pid
         ? {
             ...p,
@@ -1714,12 +1962,12 @@ const ProductManagement = () => {
   };
 
   const upsertSubscriptionProduct = useCallback(
-    async (preset, patch) => {
+    async (preset, patch, options = {}) => {
       if (!isRootUser) {
         showError(t('需要 Root 权限'));
-        return;
+        return false;
       }
-      if (!preset?.id || !preset?.name) return;
+      if (!preset?.id || !preset?.name) return false;
       const payload = buildRedemptionPresetUpsertPayload(preset, patch);
       setSubscriptionProductsLoading(true);
       try {
@@ -1727,14 +1975,18 @@ const ProductManagement = () => {
         const { success, message, data } = res.data;
         if (!success) {
           showError(message || t('保存失败'));
-          return;
+          return false;
         }
-        showSuccess(t('保存成功'));
+        if (!options?.silentSuccess) {
+          showSuccess(t('保存成功'));
+        }
         if (data) {
-          const normalizedData = normalizeManagedSubscriptionProduct(data);
+          const normalizedData = clearSubscriptionMultiQuantity(
+            normalizeManagedSubscriptionProduct(data),
+          );
           if (!normalizedData) {
             void loadSubscriptionProducts();
-            return;
+            return true;
           }
           setSubscriptionProducts((prev) =>
             (Array.isArray(prev) ? prev : []).map((p) =>
@@ -1744,9 +1996,11 @@ const ProductManagement = () => {
         } else {
           void loadSubscriptionProducts();
         }
+        return true;
       } catch (e) {
         showError(e?.message || t('保存失败'));
         void loadSubscriptionProducts();
+        return false;
       } finally {
         setSubscriptionProductsLoading(false);
       }
@@ -1769,10 +2023,16 @@ const ProductManagement = () => {
                 <div className='min-w-0'>
                   <div className='font-medium'>{t('同步调整已售商品')}</div>
                   <div className='mt-1 text-xs text-gray-500'>
-                    {t('默认关闭；关闭时仅影响后续售出商品，开启时同时调整已售订阅资产')}
+                    {t(
+                      '默认关闭；关闭时仅影响后续售出商品，开启时同时调整已售订阅资产',
+                    )}
                   </div>
                 </div>
-                <Switch onChange={(v) => { syncSoldAssets = Boolean(v); }} />
+                <Switch
+                  onChange={(v) => {
+                    syncSoldAssets = Boolean(v);
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -1780,6 +2040,7 @@ const ProductManagement = () => {
         onOk: () =>
           upsertSubscriptionProduct(preset, {
             enabled: Boolean(enabled),
+            archived: false,
             sync_sold_assets: syncSoldAssets,
           }),
       });
@@ -1797,72 +2058,6 @@ const ProductManagement = () => {
       });
     },
     [upsertSubscriptionProduct],
-  );
-
-  const updateSubscriptionProductMultiQuantityEnabled = useCallback(
-    async (preset, enabled) => {
-      let syncSoldAssets = false;
-      Modal.confirm({
-        title: t('确认修改商品'),
-        content: (
-          <div className='space-y-3'>
-            <div className='text-sm text-gray-700'>
-              {t('将修改商品的多数量购买设置，并生成新的商品版本')}
-            </div>
-            <div className='rounded-xl border border-gray-200 px-3 py-3'>
-              <div className='flex items-start justify-between gap-3'>
-                <div className='min-w-0'>
-                  <div className='font-medium'>{t('同步调整已售商品')}</div>
-                  <div className='mt-1 text-xs text-gray-500'>
-                    {t('默认关闭；关闭时仅影响后续售出商品，开启时同时调整已售订阅资产')}
-                  </div>
-                </div>
-                <Switch onChange={(v) => { syncSoldAssets = Boolean(v); }} />
-              </div>
-            </div>
-          </div>
-        ),
-        onOk: () =>
-          upsertSubscriptionProduct(preset, {
-            multi_quantity_enabled: Boolean(enabled),
-            sync_sold_assets: syncSoldAssets,
-          }),
-      });
-    },
-    [t, upsertSubscriptionProduct],
-  );
-
-  const updateSubscriptionProductMultiQuantityDeferOnly = useCallback(
-    async (preset, deferOnly) => {
-      let syncSoldAssets = false;
-      Modal.confirm({
-        title: t('确认修改商品'),
-        content: (
-          <div className='space-y-3'>
-            <div className='text-sm text-gray-700'>
-              {t('将修改商品的多数量生效方式，并生成新的商品版本')}
-            </div>
-            <div className='rounded-xl border border-gray-200 px-3 py-3'>
-              <div className='flex items-start justify-between gap-3'>
-                <div className='min-w-0'>
-                  <div className='font-medium'>{t('同步调整已售商品')}</div>
-                  <div className='mt-1 text-xs text-gray-500'>
-                    {t('默认关闭；关闭时仅影响后续售出商品，开启时同时调整已售订阅资产')}
-                  </div>
-                </div>
-                <Switch onChange={(v) => { syncSoldAssets = Boolean(v); }} />
-              </div>
-            </div>
-          </div>
-        ),
-        onOk: () =>
-          upsertSubscriptionProduct(preset, {
-            multi_quantity_defer_only: Boolean(deferOnly),
-            sync_sold_assets: syncSoldAssets,
-          }),
-      });
-    },
-    [t, upsertSubscriptionProduct],
   );
 
   const copyProduct = useCallback(
@@ -2025,7 +2220,9 @@ const ProductManagement = () => {
       if (!Number.isFinite(pid) || pid <= 0) return;
       setSubscriptionProductsLoading(true);
       try {
-        const res = await API.delete(`${PRODUCT_MANAGEMENT_PRESET_API_BASE}/${pid}`);
+        const res = await API.delete(
+          `${PRODUCT_MANAGEMENT_PRESET_API_BASE}/${pid}`,
+        );
         const { success, message } = res.data;
         if (!success) {
           showError(message || t('删除失败'));
@@ -2073,10 +2270,13 @@ const ProductManagement = () => {
           </div>
         ),
         onOk: async () => {
-          const res = await API.post(`${PRODUCT_MANAGEMENT_PRESET_API_BASE}/generate`, {
-            preset_id: presetId,
-            count,
-          });
+          const res = await API.post(
+            `${PRODUCT_MANAGEMENT_PRESET_API_BASE}/generate`,
+            {
+              preset_id: presetId,
+              count,
+            },
+          );
           const { success, message, data } = res.data;
           if (!success) {
             showError(message || t('生成失败'));
@@ -2091,7 +2291,9 @@ const ProductManagement = () => {
               content: (
                 <div>
                   <p>{t('兑换码创建成功，是否下载兑换码？')}</p>
-                  <p>{t('兑换码将以文本文件的形式下载，文件名为兑换码的名称。')}</p>
+                  <p>
+                    {t('兑换码将以文本文件的形式下载，文件名为兑换码的名称。')}
+                  </p>
                 </div>
               ),
               onOk: () => {
@@ -2105,27 +2307,35 @@ const ProductManagement = () => {
     [t],
   );
 
-  const buildGenerateRedemptionCurl = useCallback((presetId, count = 1, presetName) => {
-    const pid = Number(presetId ?? 0) || 0;
-    const qty = Math.max(1, Math.min(100, Math.floor(Number(count ?? 1) || 1)));
-    const origin =
-      typeof window !== 'undefined' && window.location?.origin
-        ? window.location.origin
-        : '$BASE_URL';
-    const uidRaw =
-      typeof getUserIdFromLocalStorage === 'function'
-        ? getUserIdFromLocalStorage()
-        : -1;
-    const uid = uidRaw && uidRaw > 0 ? uidRaw : '<ADMIN_USER_ID>';
-    const safePresetName = String(presetName ?? '')
-      .replace(/[\r\n]+/g, ' ')
-      .trim();
-    const safePresetNameJson = safePresetName
-      ? JSON.stringify(safePresetName).replace(/'/g, '\\u0027')
-      : '';
-    const nameField = safePresetNameJson ? `,\"name\":${safePresetNameJson}` : '';
-    return `curl -X POST '${origin}${PRODUCT_MANAGEMENT_PRESET_API_BASE}/generate' \\\n  -H 'Content-Type: application/json' \\\n  -H 'Authorization: <ACCESS_TOKEN>' \\\n  -H 'Transfer-Api-User: ${uid}' \\\n  -d '{\"preset_id\":${pid},\"count\":${qty}${nameField}}'`;
-  }, []);
+  const buildGenerateRedemptionCurl = useCallback(
+    (presetId, count = 1, presetName) => {
+      const pid = Number(presetId ?? 0) || 0;
+      const qty = Math.max(
+        1,
+        Math.min(100, Math.floor(Number(count ?? 1) || 1)),
+      );
+      const origin =
+        typeof window !== 'undefined' && window.location?.origin
+          ? window.location.origin
+          : '$BASE_URL';
+      const uidRaw =
+        typeof getUserIdFromLocalStorage === 'function'
+          ? getUserIdFromLocalStorage()
+          : -1;
+      const uid = uidRaw && uidRaw > 0 ? uidRaw : '<ADMIN_USER_ID>';
+      const safePresetName = String(presetName ?? '')
+        .replace(/[\r\n]+/g, ' ')
+        .trim();
+      const safePresetNameJson = safePresetName
+        ? JSON.stringify(safePresetName).replace(/'/g, '\\u0027')
+        : '';
+      const nameField = safePresetNameJson
+        ? `,\"name\":${safePresetNameJson}`
+        : '';
+      return `curl -X POST '${origin}${PRODUCT_MANAGEMENT_PRESET_API_BASE}/generate' \\\n  -H 'Content-Type: application/json' \\\n  -H 'Authorization: <ACCESS_TOKEN>' \\\n  -H 'Transfer-Api-User: ${uid}' \\\n  -d '{\"preset_id\":${pid},\"count\":${qty}${nameField}}'`;
+    },
+    [],
+  );
 
   const copyGenerateRedemptionCurl = useCallback(
     async (preset) => {
@@ -2143,8 +2353,10 @@ const ProductManagement = () => {
 
   const mergedProducts = useMemo(() => {
     const rows = [];
+    const normalizedSubscriptionProducts =
+      normalizeManagedSubscriptionProducts(subscriptionProducts);
 
-    (Array.isArray(subscriptionProducts) ? subscriptionProducts : []).forEach((p) => {
+    normalizedSubscriptionProducts.forEach((p) => {
       const mode = inferPresetMode(p);
       rows.push({
         row_key: `${mode}-${p?.id}`,
@@ -2160,22 +2372,27 @@ const ProductManagement = () => {
       });
     });
 
-    (Array.isArray(sortedPaygProducts) ? sortedPaygProducts : []).forEach((p) => {
-      rows.push({
-        row_key: `payg-${p?.id}`,
-        type: 'payg',
-        id: Number(p?.id ?? 0) || 0,
-        name: String(p?.name ?? ''),
-        description: String(p?.description ?? ''),
-        enabled: p?.archived === true ? false : p?.enabled !== false,
-        archived: p?.archived === true,
-        sort_order: Number(p?.sort_order ?? 0) || 0,
-        allowed_group_ids: normalizeGroupIds(p?.allowed_group_ids),
-        raw: p,
-      });
-    });
+    (Array.isArray(sortedPaygProducts) ? sortedPaygProducts : []).forEach(
+      (p) => {
+        rows.push({
+          row_key: `payg-${p?.id}`,
+          type: 'payg',
+          id: Number(p?.id ?? 0) || 0,
+          name: String(p?.name ?? ''),
+          description: String(p?.description ?? ''),
+          enabled: p?.archived === true ? false : p?.enabled !== false,
+          archived: p?.archived === true,
+          sort_order: Number(p?.sort_order ?? 0) || 0,
+          allowed_group_ids: normalizeGroupIds(p?.allowed_group_ids),
+          raw: p,
+        });
+      },
+    );
 
-    (Array.isArray(sortedPayRequestProducts) ? sortedPayRequestProducts : []).forEach((p) => {
+    (Array.isArray(sortedPayRequestProducts)
+      ? sortedPayRequestProducts
+      : []
+    ).forEach((p) => {
       rows.push({
         row_key: `pay_request-${p?.id}`,
         type: 'pay_request',
@@ -2190,7 +2407,10 @@ const ProductManagement = () => {
       });
     });
 
-    (Array.isArray(sortedPayTokenProducts) ? sortedPayTokenProducts : []).forEach((p) => {
+    (Array.isArray(sortedPayTokenProducts)
+      ? sortedPayTokenProducts
+      : []
+    ).forEach((p) => {
       rows.push({
         row_key: `pay_token-${p?.id}`,
         type: 'pay_token',
@@ -2205,22 +2425,25 @@ const ProductManagement = () => {
       });
     });
 
-    return rows
-      .slice()
-      .sort((a, b) => {
-        const sa = Number(a?.sort_order ?? 0) || 0;
-        const sb = Number(b?.sort_order ?? 0) || 0;
-        if (sa !== sb) return sb - sa;
+    return rows.slice().sort((a, b) => {
+      const sa = Number(a?.sort_order ?? 0) || 0;
+      const sb = Number(b?.sort_order ?? 0) || 0;
+      if (sa !== sb) return sb - sa;
 
-        const ta = String(a?.type || '');
-        const tb = String(b?.type || '');
-        if (ta !== tb) return ta.localeCompare(tb);
+      const ta = String(a?.type || '');
+      const tb = String(b?.type || '');
+      if (ta !== tb) return ta.localeCompare(tb);
 
-        const ia = Number(a?.id ?? 0) || 0;
-        const ib = Number(b?.id ?? 0) || 0;
-        return ib - ia;
-      });
-  }, [sortedPaygProducts, sortedPayRequestProducts, sortedPayTokenProducts, subscriptionProducts]);
+      const ia = Number(a?.id ?? 0) || 0;
+      const ib = Number(b?.id ?? 0) || 0;
+      return ib - ia;
+    });
+  }, [
+    sortedPaygProducts,
+    sortedPayRequestProducts,
+    sortedPayTokenProducts,
+    subscriptionProducts,
+  ]);
 
   const visibleProducts = useMemo(() => {
     const list = Array.isArray(mergedProducts) ? mergedProducts : [];
@@ -2230,8 +2453,386 @@ const ProductManagement = () => {
     return list.filter((product) => product?.archived !== true);
   }, [hideArchivedProducts, mergedProducts]);
 
+  useEffect(() => {
+    productRowsRef.current = cloneProductRows(mergedProducts);
+  }, [mergedProducts]);
+
+  useEffect(() => {
+    productVisibleRowsRef.current = cloneProductRows(visibleProducts);
+  }, [visibleProducts]);
+
+  const applyProductSortOrders = useCallback(
+    (orderedRows) => {
+      const ordered = Array.isArray(orderedRows) ? orderedRows : [];
+      const clonedOrdered = cloneProductRows(ordered);
+      productRowsRef.current = clonedOrdered;
+      productVisibleRowsRef.current = hideArchivedProducts
+        ? clonedOrdered.filter((product) => product?.archived !== true)
+        : clonedOrdered;
+
+      const byKey = new Map(
+        ordered.map((row) => [
+          String(row?.row_key || ''),
+          Number(row?.sort_order ?? 0) || 0,
+        ]),
+      );
+      const patchSortOrder = (items, type) =>
+        (Array.isArray(items) ? items : []).map((item) => {
+          const key = `${type}-${item?.id}`;
+          if (!byKey.has(key)) return item;
+          return { ...item, sort_order: byKey.get(key) };
+        });
+
+      setSubscriptionProducts((prev) =>
+        (Array.isArray(prev) ? prev : []).map((item) => {
+          const mode = inferPresetMode(item);
+          const key = `${mode}-${item?.id}`;
+          if (!byKey.has(key)) return item;
+          return { ...item, sort_order: byKey.get(key) };
+        }),
+      );
+      setPaygProducts((prev) => patchSortOrder(prev, 'payg'));
+      setPayRequestProducts((prev) => patchSortOrder(prev, 'pay_request'));
+      setPayTokenProducts((prev) => patchSortOrder(prev, 'pay_token'));
+      return ordered;
+    },
+    [hideArchivedProducts],
+  );
+
+  const setProductDropTarget = useCallback((targetKey) => {
+    const nextKey = String(targetKey || '');
+    if (productDropTargetKeyRef.current === nextKey) return;
+    productDropTargetKeyRef.current = nextKey;
+    setProductDropTargetKey(nextKey);
+  }, []);
+
+  const setProductRowRef = useCallback((rowKey, node) => {
+    const key = String(rowKey || '');
+    if (!key) return;
+    if (node) {
+      productRowRefs.current.set(key, node);
+    } else {
+      productRowRefs.current.delete(key);
+    }
+  }, []);
+
+  const clearProductOverlayFrame = useCallback(() => {
+    if (productDragOverlayFrameRef.current) {
+      cancelAnimationFrame(productDragOverlayFrameRef.current);
+      productDragOverlayFrameRef.current = 0;
+    }
+  }, []);
+
+  const applyProductOverlayTransform = useCallback(() => {
+    const overlayNode = productDragOverlayRef.current;
+    const currentDrag = productDragStateRef.current;
+    const pointer = productDragPointerRef.current;
+    if (!overlayNode || !currentDrag || !pointer) return;
+
+    const x = Math.round(pointer.x - currentDrag.offsetX);
+    const y = Math.round(pointer.y - currentDrag.offsetY);
+    overlayNode.style.transform = `translate3d(${x}px, ${y}px, 0) scale(1.01)`;
+  }, []);
+
+  const scheduleProductOverlayTransform = useCallback(() => {
+    if (productDragOverlayFrameRef.current) return;
+    productDragOverlayFrameRef.current = requestAnimationFrame(() => {
+      productDragOverlayFrameRef.current = 0;
+      applyProductOverlayTransform();
+    });
+  }, [applyProductOverlayTransform]);
+
+  const clearProductDragState = useCallback(() => {
+    clearProductOverlayFrame();
+    if (productDragHandleRef.current && productDragStateRef.current) {
+      try {
+        productDragHandleRef.current.releasePointerCapture?.(
+          productDragStateRef.current.pointerId,
+        );
+      } catch (_) {
+        // Pointer capture may already have been released by the browser.
+      }
+    }
+    productDragStateRef.current = null;
+    productDragPointerRef.current = null;
+    productDragInitialRowsRef.current = [];
+    productDragInitialVisibleRowsRef.current = [];
+    productDragHandleRef.current = null;
+    setProductDropTarget('');
+    setProductDragState(null);
+  }, [clearProductOverlayFrame, setProductDropTarget]);
+
+  const persistProductOrder = useCallback(
+    async (orderedRows, previousRows) => {
+      const ordered = Array.isArray(orderedRows) ? orderedRows : [];
+      if (ordered.length === 0) return;
+      setProductsReordering(true);
+      try {
+        const previousSortByKey = new Map(
+          cloneProductRows(previousRows).map((row) => [
+            productRowKeyOf(row),
+            Number(row?.sort_order ?? 0) || 0,
+          ]),
+        );
+        const hasSortChanged = (row) =>
+          (previousSortByKey.get(productRowKeyOf(row)) ?? null) !==
+          (Number(row?.sort_order ?? 0) || 0);
+
+        const products = ordered.filter(hasSortChanged).map((row) => ({
+          type: row?.type,
+          id: row?.id,
+          sort_order: Number(row?.sort_order ?? 0) || 0,
+        }));
+        if (products.length === 0) {
+          return;
+        }
+
+        const res = await API.post(PRODUCT_MANAGEMENT_REORDER_API_BASE, {
+          products,
+        });
+        const { success, message } = res.data;
+        if (!success) {
+          throw new Error(message || t('保存失败'));
+        }
+
+        showSuccess(t('排序已保存'));
+      } catch (e) {
+        if (Array.isArray(previousRows) && previousRows.length > 0) {
+          applyProductSortOrders(previousRows);
+        }
+        const status = e?.response?.status;
+        showError(
+          status === 404
+            ? t('排序接口未生效，请重启后端后重试')
+            : e?.message || t('保存失败'),
+        );
+      } finally {
+        setProductsReordering(false);
+      }
+    },
+    [applyProductSortOrders, t],
+  );
+
+  useEffect(() => {
+    persistProductOrderRef.current = persistProductOrder;
+  }, [persistProductOrder]);
+
+  const previewProductReorder = useCallback(
+    (clientY) => {
+      const activeDragState = productDragStateRef.current;
+      if (!activeDragState) return;
+      const visible = productDragInitialVisibleRowsRef.current;
+      const others = visible.filter(
+        (row) => productRowKeyOf(row) !== activeDragState.rowKey,
+      );
+
+      let targetKey = '';
+      for (const row of others) {
+        const key = productRowKeyOf(row);
+        const node = findProductRowNode(productRowRefs, key);
+        if (!node) continue;
+        const rect = node.getBoundingClientRect();
+        if (clientY < rect.top + rect.height / 2) {
+          targetKey = key;
+          break;
+        }
+      }
+
+      setProductDropTarget(targetKey);
+    },
+    [setProductDropTarget],
+  );
+
+  const startProductPointerDrag = useCallback(
+    (event, record) => {
+      if (productTableBusy || productsReordering || event.button !== 0) return;
+      const rowKey = String(record?.row_key || '');
+      if (!rowKey) return;
+
+      const node = findProductRowNode(productRowRefs, rowKey);
+      if (!node) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+
+      const rect = node.getBoundingClientRect();
+      const initialRows = cloneProductRows(productRowsRef.current);
+      const initialVisibleRows = cloneProductRows(
+        productVisibleRowsRef.current,
+      );
+      const nextDragState = {
+        rowKey,
+        pointerId: event.pointerId,
+        width: rect.width,
+        height: rect.height,
+        offsetX: event.clientX - rect.left,
+        offsetY: event.clientY - rect.top,
+        record: cloneProductRows([record])[0],
+      };
+
+      productDragHandleRef.current = event.currentTarget;
+      productDragInitialRowsRef.current = initialRows;
+      productDragInitialVisibleRowsRef.current = initialVisibleRows;
+      productDragStateRef.current = nextDragState;
+      productDragPointerRef.current = { x: event.clientX, y: event.clientY };
+      setProductDropTarget(rowKey);
+      setProductDragState(nextDragState);
+    },
+    [productTableBusy, productsReordering, setProductDropTarget],
+  );
+
+  useEffect(() => {
+    productDragStateRef.current = productDragState;
+    if (productDragState) {
+      scheduleProductOverlayTransform();
+    }
+  }, [productDragState, scheduleProductOverlayTransform]);
+
+  useEffect(() => {
+    if (!productDragState) return undefined;
+
+    const previousUserSelect = document.body.style.userSelect;
+    const previousCursor = document.body.style.cursor;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'grabbing';
+
+    const handlePointerMove = (event) => {
+      const activeDragState = productDragStateRef.current;
+      if (!activeDragState) return;
+      if (
+        activeDragState.pointerId !== undefined &&
+        event.pointerId !== undefined &&
+        activeDragState.pointerId !== event.pointerId
+      ) {
+        return;
+      }
+
+      productDragPointerRef.current = { x: event.clientX, y: event.clientY };
+      scheduleProductOverlayTransform();
+      previewProductReorder(event.clientY);
+    };
+
+    const finishDrag = (event) => {
+      const activeDragState = productDragStateRef.current;
+      if (
+        activeDragState?.pointerId !== undefined &&
+        event?.pointerId !== undefined &&
+        activeDragState.pointerId !== event.pointerId
+      ) {
+        return;
+      }
+
+      const previousRows = cloneProductRows(productDragInitialRowsRef.current);
+      const previousVisibleRows = cloneProductRows(
+        productDragInitialVisibleRowsRef.current,
+      );
+      const dropTargetKey = productDropTargetKeyRef.current;
+      const nextVisibleRows =
+        dropTargetKey === activeDragState.rowKey
+          ? previousVisibleRows
+          : reorderProductRowsBefore(
+              previousVisibleRows,
+              activeDragState.rowKey,
+              dropTargetKey,
+            );
+      const nextRows = withSequentialSortOrders(
+        mergeReorderedVisibleProductRows(previousRows, nextVisibleRows),
+      );
+      const changed =
+        !areProductRowOrdersEqual(previousRows, nextRows) ||
+        !areProductRowSortOrdersEqual(previousRows, nextRows);
+      clearProductDragState();
+      if (changed) {
+        applyProductSortOrders(nextRows);
+        void persistProductOrderRef.current?.(nextRows, previousRows);
+      }
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', finishDrag);
+    window.addEventListener('pointercancel', finishDrag);
+
+    return () => {
+      document.body.style.userSelect = previousUserSelect;
+      document.body.style.cursor = previousCursor;
+      clearProductOverlayFrame();
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', finishDrag);
+      window.removeEventListener('pointercancel', finishDrag);
+    };
+  }, [
+    clearProductDragState,
+    clearProductOverlayFrame,
+    applyProductSortOrders,
+    previewProductReorder,
+    productDragState,
+    scheduleProductOverlayTransform,
+  ]);
+
+  const getProductRowProps = useCallback(
+    (record, index) => {
+      const rowKey = String(record?.row_key || '');
+      const isDragging = productDragState?.rowKey === rowKey;
+      const isDropTarget =
+        Boolean(productDragState) &&
+        productDragState.rowKey !== rowKey &&
+        productDropTargetKey === rowKey;
+      const visibleRows = productDragState
+        ? productDragInitialVisibleRowsRef.current
+        : productVisibleRowsRef.current;
+      const lastDropRowKey = visibleRows
+        .filter((row) => productRowKeyOf(row) !== productDragState?.rowKey)
+        .at(-1)?.row_key;
+      const isDropEndTarget =
+        Boolean(productDragState) &&
+        productDropTargetKey === '' &&
+        rowKey !== productDragState.rowKey &&
+        String(lastDropRowKey || '') === rowKey;
+      return {
+        ref: (node) => setProductRowRef(rowKey, node),
+        className: [
+          'product-management-row',
+          isDragging ? 'product-management-row--dragging' : '',
+          isDropTarget ? 'product-management-row--drop-before' : '',
+          isDropEndTarget ? 'product-management-row--drop-after' : '',
+        ]
+          .filter(Boolean)
+          .join(' '),
+        style: {
+          transition:
+            'box-shadow 140ms ease, background-color 140ms ease, opacity 140ms ease',
+        },
+        'data-product-row-key': rowKey,
+        'data-product-row-index': index,
+      };
+    },
+    [productDragState, productDropTargetKey, setProductRowRef],
+  );
+
   const mergedProductColumns = useMemo(() => {
     return [
+      {
+        title: '',
+        key: 'drag',
+        width: 54,
+        fixed: 'left',
+        render: (_, record) => (
+          <Tooltip content={t('拖拽排序')}>
+            <span
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent ${
+                productTableBusy
+                  ? 'cursor-not-allowed text-gray-300'
+                  : 'cursor-grab touch-none text-gray-500 hover:border-gray-200 hover:bg-gray-50 active:cursor-grabbing'
+              }`}
+              onPointerDown={(event) => startProductPointerDrag(event, record)}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <GripVertical size={16} />
+            </span>
+          </Tooltip>
+        ),
+      },
       {
         title: t('类型'),
         key: 'type',
@@ -2242,49 +2843,31 @@ const ProductManagement = () => {
         title: t('名称'),
         dataIndex: 'name',
         key: 'name',
-        render: (_, record) => {
-          const type = String(record?.type || '');
-          const raw = record?.raw || {};
-          const meta = buildProductMetaLabels(type, raw);
-
-          return (
-            <div className='min-w-0'>
-              <div className='font-medium'>{record?.name || '-'}</div>
-              {record?.description ? (
-                <div className='mt-1 text-xs text-gray-500 leading-tight'>
-                  {record.description}
-                </div>
-              ) : null}
-              {meta.length > 0 ? (
-                <div className='mt-2 flex flex-wrap gap-1'>
-                  {meta.map((m, idx) => (
-                    <Tag
-                      key={`${record?.row_key || record?.id || 'product'}-meta-${idx}`}
-                      color='grey'
-                      shape='circle'
-                    >
-                      {m}
-                    </Tag>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          );
-        },
+        width: 220,
+        render: (_, record) => (
+          <div className='min-w-[180px] truncate font-medium'>
+            {record?.name || '-'}
+          </div>
+        ),
       },
       {
         title: t('可用分组'),
         dataIndex: 'allowed_group_ids',
         key: 'allowed_group_ids',
+        width: 360,
         render: (_, record) => {
           const groupIds = normalizeGroupIds(record?.allowed_group_ids);
           if (groupIds.length === 0) {
             return <Text type='danger'>{t('未配置')}</Text>;
           }
           return (
-            <div className='flex flex-wrap justify-end gap-1'>
+            <div className='flex min-w-[320px] max-w-[520px] flex-wrap items-center justify-start gap-1'>
               {groupIds.map((gid) => (
-                <Text key={`${record?.row_key}-${gid}`} code style={{ fontSize: 12 }}>
+                <Text
+                  key={`${record?.row_key}-${gid}`}
+                  code
+                  style={{ fontSize: 12, whiteSpace: 'nowrap' }}
+                >
                   {groupLabelById[gid] || t('未知分组')}
                 </Text>
               ))}
@@ -2293,194 +2876,97 @@ const ProductManagement = () => {
         },
       },
       {
-        title: t('是否上架'),
-        key: 'enabled',
-        width: 110,
-        render: (_, record) => (
-          <Switch
-            checked={record?.enabled !== false}
-            disabled={
-              record?.archived === true ||
-              !isRootUser ||
-              paygProductsSaving ||
-              paygLoading ||
-              payRequestProductsSaving ||
-              payTokenProductsSaving ||
-              subscriptionProductsLoading
-            }
-            onChange={(v) => {
-              if (record?.type === 'payg') {
-                void togglePaygProductEnabled(record.raw, v);
-                return;
-              }
-              if (record?.type === 'pay_request') {
-                void togglePayRequestProductEnabled(record.raw, v);
-                return;
-              }
-              if (record?.type === 'pay_token') {
-                void togglePayTokenProductEnabled(record.raw, v);
-                return;
-              }
-              void updateSubscriptionProductEnabled(record.raw, v);
-            }}
-          />
-        ),
-      },
-      {
-        title: t('启用/停用'),
-        key: 'archived',
-        width: 120,
-        render: (_, record) => {
-          const busy =
-            !isRootUser ||
-            paygProductsSaving ||
-            paygLoading ||
-            payRequestProductsSaving ||
-            payTokenProductsSaving ||
-            subscriptionProductsLoading;
-          const archived = record?.archived === true;
-          return (
-            <Button
-              size='small'
-              type={archived ? 'primary' : 'danger'}
-              theme={archived ? 'solid' : 'light'}
-              disabled={busy}
-              onClick={() => {
-                if (record?.type === 'payg') {
-                  void updatePaygProductArchived(record.raw, !archived);
-                  return;
-                }
-                if (record?.type === 'pay_request') {
-                  void updatePayRequestProductArchived(record.raw, !archived);
-                  return;
-                }
-                if (record?.type === 'pay_token') {
-                  void updatePayTokenProductArchived(record.raw, !archived);
-                  return;
-                }
-                void updateSubscriptionProductArchived(record.raw, !archived);
-              }}
-            >
-              {archived ? t('启用') : t('停用')}
-            </Button>
-          );
-        },
-      },
-      {
-        title: (
-          <div className='leading-tight'>
-            <div>{t('允许多数量购买')}</div>
-            <div className='text-xs text-gray-500'>
-              {t('开启后可在订阅购买页选择购买数量')}
-            </div>
-          </div>
-        ),
-        key: 'multi_quantity_enabled',
-        width: 190,
-        render: (_, record) => {
-          const type = String(record?.type || '');
-          if (type !== 'subscription' && type !== 'tokens' && type !== 'request') {
-            return <Text type='tertiary'>-</Text>;
-          }
-          return (
-            <Switch
-              checked={Boolean(record?.raw?.multi_quantity_enabled)}
-              disabled={
-                !isRootUser ||
-                paygProductsSaving ||
-                paygLoading ||
-                payRequestProductsSaving ||
-                payTokenProductsSaving ||
-                subscriptionProductsLoading
-              }
-              onChange={(v) =>
-                void updateSubscriptionProductMultiQuantityEnabled(record.raw, v)
-              }
-            />
-          );
-        },
-      },
-      {
-        title: t('多数量仅允许顺延'),
-        key: 'multi_quantity_defer_only',
-        width: 160,
-        render: (_, record) => {
-          const type = String(record?.type || '');
-          if (type !== 'subscription' && type !== 'tokens' && type !== 'request') {
-            return <Text type='tertiary'>-</Text>;
-          }
-          return (
-            <Switch
-              checked={record?.raw?.multi_quantity_defer_only !== false}
-              disabled={
-                !isRootUser ||
-                paygProductsSaving ||
-                paygLoading ||
-                payRequestProductsSaving ||
-                payTokenProductsSaving ||
-                subscriptionProductsLoading
-              }
-              onChange={(v) =>
-                void updateSubscriptionProductMultiQuantityDeferOnly(record.raw, v)
-              }
-            />
-          );
-        },
-      },
-      {
-        title: t('排序'),
-        dataIndex: 'sort_order',
-        key: 'sort_order',
-        width: 100,
-        render: (v) => Number(v ?? 0) || 0,
-      },
-      {
         title: '',
         key: 'action',
-        width: 470,
+        width: 360,
+        fixed: 'right',
         render: (_, record) => {
           const type = String(record?.type || '');
           const isSubscriptionProduct = isSubscriptionProductType(type);
-          const busy =
-            !isRootUser ||
-            paygProductsSaving ||
-            paygLoading ||
-            payRequestProductsSaving ||
-            payTokenProductsSaving ||
-            subscriptionProductsLoading;
+          const busy = productTableBusy;
+          const archived = record?.archived === true;
+          const saleEnabled = archived ? false : record?.enabled !== false;
 
           return (
-            <Space>
-              {isSubscriptionProduct ? (
-                <Button
+            <div className='flex max-w-[360px] flex-wrap items-center justify-end gap-2'>
+              <div className='flex shrink-0 items-center gap-2 rounded-md border border-gray-200 px-2 py-1'>
+                <Switch
+                  checked={saleEnabled}
                   size='small'
+                  disabled={busy}
+                  onChange={(v) => {
+                    if (record?.type === 'payg') {
+                      void togglePaygProductEnabled(record.raw, v);
+                      return;
+                    }
+                    if (record?.type === 'pay_request') {
+                      void togglePayRequestProductEnabled(record.raw, v);
+                      return;
+                    }
+                    if (record?.type === 'pay_token') {
+                      void togglePayTokenProductEnabled(record.raw, v);
+                      return;
+                    }
+                    void updateSubscriptionProductEnabled(record.raw, v);
+                  }}
+                />
+                <Text size='small' type='tertiary'>
+                  {saleEnabled ? t('已上架') : t('下架')}
+                </Text>
+              </div>
+              <ProductActionButton
+                type={archived ? 'primary' : 'danger'}
+                theme={archived ? 'solid' : 'light'}
+                disabled={busy}
+                onClick={() => {
+                  if (record?.type === 'payg') {
+                    void updatePaygProductArchived(record.raw, !archived);
+                    return;
+                  }
+                  if (record?.type === 'pay_request') {
+                    void updatePayRequestProductArchived(record.raw, !archived);
+                    return;
+                  }
+                  if (record?.type === 'pay_token') {
+                    void updatePayTokenProductArchived(record.raw, !archived);
+                    return;
+                  }
+                  void updateSubscriptionProductArchived(record.raw, !archived);
+                }}
+              >
+                {archived ? t('启用') : t('停用')}
+              </ProductActionButton>
+              {isSubscriptionProduct ? (
+                <ProductActionButton
                   disabled={!isRootUser || subscriptionProductsLoading}
                   onClick={() => generateBySubscriptionProduct(record.raw)}
                 >
                   {t('生成兑换码')}
-                </Button>
+                </ProductActionButton>
               ) : null}
               {isSubscriptionProduct ? (
-                <Button
-                  size='small'
+                <ProductActionButton
                   disabled={!isRootUser || subscriptionProductsLoading}
                   onClick={() => void copyGenerateRedemptionCurl(record.raw)}
                 >
                   {t('复制curl')}
-                </Button>
+                </ProductActionButton>
               ) : null}
-              <Button
-                size='small'
+              <ProductActionButton
                 disabled={busy}
-                onClick={() => void openProductRevisionHistory(type, record.raw)}
+                onClick={() =>
+                  void openProductRevisionHistory(type, record.raw)
+                }
               >
                 {t('历史')}
-              </Button>
-              <Button size='small' disabled={busy} onClick={() => void copyProduct(record)}>
+              </ProductActionButton>
+              <ProductActionButton
+                disabled={busy}
+                onClick={() => void copyProduct(record)}
+              >
                 {t('复制')}
-              </Button>
-              <Button
-                size='small'
+              </ProductActionButton>
+              <ProductActionButton
                 icon={<IconEdit />}
                 disabled={busy}
                 onClick={() => {
@@ -2496,7 +2982,7 @@ const ProductManagement = () => {
                 }}
               >
                 {t('编辑')}
-              </Button>
+              </ProductActionButton>
               <Popconfirm
                 title={t('确定删除？')}
                 onConfirm={() => {
@@ -2511,17 +2997,20 @@ const ProductManagement = () => {
                   }
                 }}
               >
-                <Button size='small' type='danger' icon={<IconDelete />} disabled={busy}>
+                <ProductActionButton
+                  type='danger'
+                  icon={<IconDelete />}
+                  disabled={busy}
+                >
                   {t('删除')}
-                </Button>
+                </ProductActionButton>
               </Popconfirm>
-            </Space>
+            </div>
           );
         },
       },
     ];
   }, [
-    buildProductMetaLabels,
     copyGenerateRedemptionCurl,
     copyProduct,
     deletePaygProduct,
@@ -2540,7 +3029,9 @@ const ProductManagement = () => {
     paygProductsSaving,
     payRequestProductsSaving,
     payTokenProductsSaving,
+    productTableBusy,
     renderProductTypeTag,
+    startProductPointerDrag,
     subscriptionProductsLoading,
     t,
     updatePayRequestProductArchived,
@@ -2551,9 +3042,107 @@ const ProductManagement = () => {
     togglePayRequestProductEnabled,
     togglePayTokenProductEnabled,
     updateSubscriptionProductEnabled,
-    updateSubscriptionProductMultiQuantityDeferOnly,
-    updateSubscriptionProductMultiQuantityEnabled,
   ]);
+
+  const productDragOverlay =
+    productDragState &&
+    productDragState.record &&
+    typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            ref={productDragOverlayRef}
+            className='pointer-events-none fixed left-0 top-0 z-[9999] will-change-transform'
+            style={{
+              width: productDragState.width,
+              maxWidth: 'min(960px, calc(100vw - 32px))',
+            }}
+          >
+            <div className='rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-[0_18px_42px_-24px_rgba(15,23,42,0.36)] dark:border-slate-700 dark:bg-[#313844]'>
+              <div className='flex items-center gap-3'>
+                <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-200'>
+                  <GripVertical size={16} />
+                </div>
+                <div className='min-w-0 flex-1'>
+                  <div className='truncate text-sm font-medium text-slate-900 dark:text-slate-50'>
+                    {productDragState.record.name || '-'}
+                  </div>
+                  <div className='mt-1 flex items-center gap-2'>
+                    {renderProductTypeTag(
+                      String(productDragState.record.type || ''),
+                    )}
+                    <span className='text-xs text-slate-400'>
+                      {t('拖拽排序')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
+  const productManagementTableStyles = (
+    <style>
+      {`
+        .product-management-table {
+          width: 100%;
+        }
+
+        .product-management-table .semi-table,
+        .product-management-table .semi-table-container,
+        .product-management-table .semi-table-body {
+          width: 100%;
+        }
+
+        .product-management-table .semi-table-body {
+          overflow-x: auto;
+        }
+
+        .product-management-table .semi-table table {
+          min-width: 1120px;
+          width: 100%;
+        }
+
+        .product-management-row--dragging > td {
+          background: color-mix(in srgb, var(--app-card-muted) 68%, transparent 32%) !important;
+          opacity: 0.58;
+        }
+
+        .product-management-row--drop-before > td {
+          box-shadow: inset 0 3px 0 rgba(14, 165, 233, 0.95);
+        }
+
+        .product-management-row--drop-after > td {
+          box-shadow: inset 0 -3px 0 rgba(14, 165, 233, 0.95);
+        }
+
+        .product-management-row--drop-before > td:first-child,
+        .product-management-row--drop-after > td:first-child {
+          box-shadow: inherit;
+        }
+
+        html.dark .product-management-row--dragging > td {
+          background: rgba(148, 163, 184, 0.08) !important;
+        }
+
+        @media (max-width: 767px) {
+          .product-management-row--dragging {
+            opacity: 0.58;
+            background: color-mix(in srgb, var(--app-card-muted) 68%, transparent 32%) !important;
+          }
+
+          .product-management-row--drop-before {
+            box-shadow: inset 0 3px 0 rgba(14, 165, 233, 0.95);
+          }
+
+          .product-management-row--drop-after {
+            box-shadow: inset 0 -3px 0 rgba(14, 165, 233, 0.95);
+          }
+        }
+      `}
+    </style>
+  );
 
   const createProductMenu = useMemo(() => {
     return (
@@ -2604,6 +3193,7 @@ const ProductManagement = () => {
 
   return (
     <ConsolePage>
+      {productManagementTableStyles}
       <div className='app-surface-solid p-4 md:p-6 space-y-4'>
         <div className='flex items-start justify-between gap-4'>
           <div className='min-w-0'>
@@ -2611,21 +3201,29 @@ const ProductManagement = () => {
               {t('商品管理')}
             </Title>
             <Text type='tertiary' size='small'>
-              {t('可选择新增额度订阅（美元/次数/tokens）或按量付费（美元/次数/token）商品，并为商品配置可用分组')}
+              {t(
+                '可选择新增额度订阅（美元/次数/tokens）或按量付费（美元/次数/token）商品，并为商品配置可用分组',
+              )}
             </Text>
           </div>
           <div className='shrink-0 flex flex-wrap items-center justify-end gap-2'>
             <div className='inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2'>
               <Switch
                 checked={hideArchivedProducts}
-                disabled={productManagementOptionsLoading || hideArchivedProductsSaving}
+                disabled={
+                  productManagementOptionsLoading ||
+                  hideArchivedProductsSaving ||
+                  productsReordering
+                }
                 onChange={updateHideArchivedProducts}
               />
               <Text size='small'>{t('隐藏停用商品')}</Text>
               <Text type='tertiary' size='small'>
                 {t('显示 {{shown}} / {{total}}', {
                   shown: visibleProducts.length,
-                  total: Array.isArray(mergedProducts) ? mergedProducts.length : 0,
+                  total: Array.isArray(mergedProducts)
+                    ? mergedProducts.length
+                    : 0,
                 })}
               </Text>
             </div>
@@ -2633,7 +3231,7 @@ const ProductManagement = () => {
               <Button
                 type='tertiary'
                 icon={<IconSetting />}
-                disabled={paygLoading || paygSaving}
+                disabled={paygLoading || paygSaving || productsReordering}
                 onClick={() => setPaygSettingSheetVisible(true)}
               >
                 {t('付费设置')}
@@ -2648,7 +3246,7 @@ const ProductManagement = () => {
                 type='primary'
                 theme='solid'
                 icon={<IconPlus />}
-                disabled={!isRootUser}
+                disabled={!isRootUser || productsReordering}
               >
                 <span className='inline-flex items-center gap-1'>
                   {t('新增预置商品')}
@@ -2671,7 +3269,8 @@ const ProductManagement = () => {
                 paygProductsSaving ||
                 payRequestProductsSaving ||
                 payTokenProductsSaving ||
-                subscriptionProductsLoading
+                subscriptionProductsLoading ||
+                productsReordering
               }
             >
               {t('刷新')}
@@ -2681,7 +3280,7 @@ const ProductManagement = () => {
 
         <Card
           className='!rounded-2xl !border-0 !shadow-none'
-          bodyStyle={{ padding: 20 }}
+          bodyStyle={{ padding: 20, width: '100%' }}
         >
           <CardTable
             columns={mergedProductColumns}
@@ -2689,16 +3288,22 @@ const ProductManagement = () => {
             loading={
               productManagementOptionsLoading ||
               paygLoading ||
-                paygProductsSaving ||
-                payRequestProductsSaving ||
-                payTokenProductsSaving ||
-                subscriptionProductsLoading
+              paygProductsSaving ||
+              payRequestProductsSaving ||
+              payTokenProductsSaving ||
+              subscriptionProductsLoading ||
+              productsReordering
             }
             rowKey='row_key'
+            onRow={getProductRowProps}
+            className='product-management-table w-full'
+            style={{ width: '100%' }}
+            scroll={{ x: 'max-content' }}
             hidePagination
           />
         </Card>
       </div>
+      {productDragOverlay}
 
       <Modal
         title={
@@ -2744,10 +3349,14 @@ const ProductManagement = () => {
                       <div className='min-w-0'>
                         <div className='flex flex-wrap items-center gap-2'>
                           <Text strong>
-                            {`${t('版本')} #${Number(revision?.revision_no ?? 0) || '-'}`}
+                            {`${t('版本')} #${
+                              Number(revision?.revision_no ?? 0) || '-'
+                            }`}
                           </Text>
                           {renderProductTypeTag(
-                            isSubscriptionProductType(revisionHistoryProductType)
+                            isSubscriptionProductType(
+                              revisionHistoryProductType,
+                            )
                               ? revisionType
                               : revisionHistoryProductType,
                           )}
@@ -2758,17 +3367,24 @@ const ProductManagement = () => {
                           ) : null}
                         </div>
                         <div className='mt-1 text-xs text-gray-500'>
-                          {`${t('快照时间')}: ${formatTimestampLabel(revision?.snapshot_time)}`}
+                          {`${t('快照时间')}: ${formatTimestampLabel(
+                            revision?.snapshot_time,
+                          )}`}
                         </div>
                         <div className='mt-1 text-xs text-gray-500'>
-                          {`${t('更新时间')}: ${formatTimestampLabel(revision?.preset_updated_time)}`}
+                          {`${t('更新时间')}: ${formatTimestampLabel(
+                            revision?.preset_updated_time,
+                          )}`}
                         </div>
                       </div>
                       <Button
                         size='small'
                         theme='light'
                         type='primary'
-                        disabled={Boolean(revision?.is_current) || restoringRevisionId > 0}
+                        disabled={
+                          Boolean(revision?.is_current) ||
+                          restoringRevisionId > 0
+                        }
                         loading={restoringRevisionId === revisionId}
                         onClick={() => openRestoreRevisionDialog(revision)}
                       >
@@ -2798,10 +3414,15 @@ const ProductManagement = () => {
 
                     {groupIds.length > 0 ? (
                       <div className='mt-3'>
-                        <div className='mb-1 text-xs text-gray-500'>{t('可用分组')}</div>
+                        <div className='mb-1 text-xs text-gray-500'>
+                          {t('可用分组')}
+                        </div>
                         <div className='flex flex-wrap gap-1'>
                           {groupIds.map((gid) => (
-                            <Text key={`preset-revision-group-${revisionId}-${gid}`} code>
+                            <Text
+                              key={`preset-revision-group-${revisionId}-${gid}`}
+                              code
+                            >
                               {groupLabelById[gid] || t('未知分组')}
                             </Text>
                           ))}
@@ -2811,7 +3432,9 @@ const ProductManagement = () => {
 
                     {groupDailyLimitLabels.length > 0 ? (
                       <div className='mt-3'>
-                        <div className='mb-1 text-xs text-gray-500'>{t('分组日限额')}</div>
+                        <div className='mb-1 text-xs text-gray-500'>
+                          {t('分组日限额')}
+                        </div>
                         <div className='flex flex-wrap gap-1'>
                           {groupDailyLimitLabels.map((item, index) => (
                             <Text
@@ -2879,12 +3502,16 @@ const ProductManagement = () => {
       </Modal>
 
       <EditRedemptionPresetModal
-        key={`${subscriptionEditVisible ? 'open' : 'closed'}-${editingSubscriptionProduct?.id ?? 'new'}-${editingSubscriptionProduct?.mode || 'subscription'}`}
+        key={`${subscriptionEditVisible ? 'open' : 'closed'}-${
+          editingSubscriptionProduct?.id ?? 'new'
+        }-${editingSubscriptionProduct?.mode || 'subscription'}`}
         visible={subscriptionEditVisible}
         editingPreset={editingSubscriptionProduct}
         allowedModes={['subscription', 'tokens', 'request']}
         modeLocked={editingSubscriptionProduct?.mode}
         presetApiBase={PRODUCT_MANAGEMENT_PRESET_API_BASE}
+        showSortOrderField={false}
+        showMultiQuantityFields={false}
         onClose={closeSubscriptionEdit}
         onSuccess={handleSubscriptionProductSaved}
       />
@@ -3025,24 +3652,16 @@ const ProductManagement = () => {
                   showClear
                   disabled={!isRootUser || paygProductsSaving}
                 />
-                <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                  <Form.InputNumber
-                    field='sort_order'
-                    label={t('排序')}
-                    min={0}
-                    disabled={!isRootUser || paygProductsSaving}
-                  />
-                  <Form.InputNumber
-                    field='stock'
-                    label={t('库存')}
-                    min={0}
-                    precision={0}
-                    step={1}
-                    placeholder={t('留空表示无限制')}
-                    extraText={t('留空表示无限制；0 表示售罄')}
-                    disabled={!isRootUser || paygProductsSaving}
-                  />
-                </div>
+                <Form.InputNumber
+                  field='stock'
+                  label={t('库存')}
+                  min={0}
+                  precision={0}
+                  step={1}
+                  placeholder={t('留空表示无限制')}
+                  extraText={t('留空表示无限制；0 表示售罄')}
+                  disabled={!isRootUser || paygProductsSaving}
+                />
                 <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                   <Form.Switch
                     field='enabled'
@@ -3055,7 +3674,10 @@ const ProductManagement = () => {
                     disabled={!isRootUser || paygProductsSaving}
                     onChange={(checked) => {
                       if (checked) {
-                        paygProductFormApiRef.current?.setValue('enabled', false);
+                        paygProductFormApiRef.current?.setValue(
+                          'enabled',
+                          false,
+                        );
                       }
                     }}
                   />
@@ -3071,9 +3693,8 @@ const ProductManagement = () => {
                   loading={groupsLoading}
                   multiple
                   search
-                  rules={[{ required: true, message: t('请选择可用分组') }]}
                   disabled={!isRootUser || paygProductsSaving}
-                  extraText={t('限制该按量商品可消费的渠道分组')}
+                  extraText={t('上架商品必须配置可用分组')}
                   style={{ width: '100%' }}
                 />
               </Form>
@@ -3085,7 +3706,8 @@ const ProductManagement = () => {
       <SideSheet
         title={
           (Array.isArray(payRequestProducts) ? payRequestProducts : []).some(
-            (p) => Number(p?.id ?? 0) === Number(editingPayRequestProduct?.id ?? 0),
+            (p) =>
+              Number(p?.id ?? 0) === Number(editingPayRequestProduct?.id ?? 0),
           )
             ? t('编辑按次商品')
             : t('新增按次商品')
@@ -3129,13 +3751,16 @@ const ProductManagement = () => {
                   description: editingPayRequestProduct?.description || '',
                   enabled: editingPayRequestProduct?.enabled !== false,
                   archived: editingPayRequestProduct?.archived === true,
-                  sort_order: Number(editingPayRequestProduct?.sort_order ?? 0) || 0,
+                  sort_order:
+                    Number(editingPayRequestProduct?.sort_order ?? 0) || 0,
                   stock: editingPayRequestProduct?.stock ?? null,
                   allowed_group_ids: normalizeGroupIds(
                     editingPayRequestProduct?.allowed_group_ids,
                   ),
                 }}
-                getFormApi={(api) => (payRequestProductFormApiRef.current = api)}
+                getFormApi={(api) =>
+                  (payRequestProductFormApiRef.current = api)
+                }
               >
                 <Form.Input
                   field='name'
@@ -3153,24 +3778,16 @@ const ProductManagement = () => {
                   showClear
                   disabled={!isRootUser || payRequestProductsSaving}
                 />
-                <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                  <Form.InputNumber
-                    field='sort_order'
-                    label={t('排序')}
-                    min={0}
-                    disabled={!isRootUser || payRequestProductsSaving}
-                  />
-                  <Form.InputNumber
-                    field='stock'
-                    label={t('库存')}
-                    min={0}
-                    precision={0}
-                    step={1}
-                    placeholder={t('留空表示无限制')}
-                    extraText={t('留空表示无限制；0 表示售罄')}
-                    disabled={!isRootUser || payRequestProductsSaving}
-                  />
-                </div>
+                <Form.InputNumber
+                  field='stock'
+                  label={t('库存')}
+                  min={0}
+                  precision={0}
+                  step={1}
+                  placeholder={t('留空表示无限制')}
+                  extraText={t('留空表示无限制；0 表示售罄')}
+                  disabled={!isRootUser || payRequestProductsSaving}
+                />
                 <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                   <Form.Switch
                     field='enabled'
@@ -3183,7 +3800,10 @@ const ProductManagement = () => {
                     disabled={!isRootUser || payRequestProductsSaving}
                     onChange={(checked) => {
                       if (checked) {
-                        payRequestProductFormApiRef.current?.setValue('enabled', false);
+                        payRequestProductFormApiRef.current?.setValue(
+                          'enabled',
+                          false,
+                        );
                       }
                     }}
                   />
@@ -3199,9 +3819,8 @@ const ProductManagement = () => {
                   loading={groupsLoading}
                   multiple
                   search
-                  rules={[{ required: true, message: t('请选择可用分组') }]}
                   disabled={!isRootUser || payRequestProductsSaving}
-                  extraText={t('限制该按次商品可消费的渠道分组')}
+                  extraText={t('上架商品必须配置可用分组')}
                   style={{ width: '100%' }}
                 />
               </Form>
@@ -3213,7 +3832,8 @@ const ProductManagement = () => {
       <SideSheet
         title={
           (Array.isArray(payTokenProducts) ? payTokenProducts : []).some(
-            (p) => Number(p?.id ?? 0) === Number(editingPayTokenProduct?.id ?? 0),
+            (p) =>
+              Number(p?.id ?? 0) === Number(editingPayTokenProduct?.id ?? 0),
           )
             ? t('编辑按token商品')
             : t('新增按token商品')
@@ -3257,7 +3877,8 @@ const ProductManagement = () => {
                   description: editingPayTokenProduct?.description || '',
                   enabled: editingPayTokenProduct?.enabled !== false,
                   archived: editingPayTokenProduct?.archived === true,
-                  sort_order: Number(editingPayTokenProduct?.sort_order ?? 0) || 0,
+                  sort_order:
+                    Number(editingPayTokenProduct?.sort_order ?? 0) || 0,
                   stock: editingPayTokenProduct?.stock ?? null,
                   allowed_group_ids: normalizeGroupIds(
                     editingPayTokenProduct?.allowed_group_ids,
@@ -3281,24 +3902,16 @@ const ProductManagement = () => {
                   showClear
                   disabled={!isRootUser || payTokenProductsSaving}
                 />
-                <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                  <Form.InputNumber
-                    field='sort_order'
-                    label={t('排序')}
-                    min={0}
-                    disabled={!isRootUser || payTokenProductsSaving}
-                  />
-                  <Form.InputNumber
-                    field='stock'
-                    label={t('库存')}
-                    min={0}
-                    precision={0}
-                    step={1}
-                    placeholder={t('留空表示无限制')}
-                    extraText={t('留空表示无限制；0 表示售罄')}
-                    disabled={!isRootUser || payTokenProductsSaving}
-                  />
-                </div>
+                <Form.InputNumber
+                  field='stock'
+                  label={t('库存')}
+                  min={0}
+                  precision={0}
+                  step={1}
+                  placeholder={t('留空表示无限制')}
+                  extraText={t('留空表示无限制；0 表示售罄')}
+                  disabled={!isRootUser || payTokenProductsSaving}
+                />
                 <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                   <Form.Switch
                     field='enabled'
@@ -3311,7 +3924,10 @@ const ProductManagement = () => {
                     disabled={!isRootUser || payTokenProductsSaving}
                     onChange={(checked) => {
                       if (checked) {
-                        payTokenProductFormApiRef.current?.setValue('enabled', false);
+                        payTokenProductFormApiRef.current?.setValue(
+                          'enabled',
+                          false,
+                        );
                       }
                     }}
                   />
@@ -3327,9 +3943,8 @@ const ProductManagement = () => {
                   loading={groupsLoading}
                   multiple
                   search
-                  rules={[{ required: true, message: t('请选择可用分组') }]}
                   disabled={!isRootUser || payTokenProductsSaving}
-                  extraText={t('限制该按token商品可消费的渠道分组')}
+                  extraText={t('上架商品必须配置可用分组')}
                   style={{ width: '100%' }}
                 />
               </Form>

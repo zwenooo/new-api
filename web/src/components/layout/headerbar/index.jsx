@@ -31,6 +31,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const {
     userState,
+    statusState,
     isMobile,
     collapsed,
     logoLoaded,
@@ -64,11 +65,10 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const {
     noticeVisible,
     unreadCount,
-    noticeMarkdown,
-    noticeLoading,
     handleNoticeOpen,
     handleNoticeClose,
-  } = useNotifications();
+    getUnreadKeys,
+  } = useNotifications(statusState);
 
   const { mainNavLinks } = useNavigation(t, docsLink, headerNavModules);
   const containerClassName =
@@ -94,8 +94,8 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
         visible={noticeVisible}
         onClose={handleNoticeClose}
         isMobile={isMobile}
-        noticeMarkdown={noticeMarkdown}
-        loading={noticeLoading}
+        defaultTab={unreadCount > 0 ? 'system' : 'inApp'}
+        unreadKeys={getUnreadKeys()}
       />
 
       <div className={containerClassName}>

@@ -32,8 +32,7 @@
   --app-surface-solid: #ffffff;
   --app-border: rgba(15, 23, 42, 0.08);
   --app-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    0 18px 40px rgba(15, 23, 42, 0.06);
+    0 1px 2px rgba(15, 23, 42, 0.04), 0 18px 40px rgba(15, 23, 42, 0.06);
   --app-radius: 12px;
   --app-radius-lg: 18px;
   --app-radius-sm: 10px;
@@ -46,8 +45,7 @@
   --app-header-shell-bg: rgba(255, 255, 255, 0.88);
   --app-header-shell-border: rgba(15, 23, 42, 0.08);
   --app-header-shell-shadow:
-    0 10px 30px rgba(15, 23, 42, 0.08),
-    0 1px 0 rgba(255, 255, 255, 0.72) inset;
+    0 10px 30px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255, 255, 255, 0.72) inset;
   --app-console-frame-bg: color-mix(in srgb, var(--app-panel) 84%, white 16%);
   --app-console-sidebar-bg: color-mix(
     in srgb,
@@ -64,10 +62,13 @@
     var(--app-surface-solid) 95%,
     transparent
   );
-  --app-console-shell-border: color-mix(in srgb, var(--app-border) 86%, white 14%);
+  --app-console-shell-border: color-mix(
+    in srgb,
+    var(--app-border) 86%,
+    white 14%
+  );
   --app-console-shell-shadow:
-    0 18px 40px rgba(15, 23, 42, 0.06),
-    0 1px 0 rgba(255, 255, 255, 0.48) inset;
+    0 18px 40px rgba(15, 23, 42, 0.06), 0 1px 0 rgba(255, 255, 255, 0.48) inset;
   --app-console-shell-divider: transparent;
   --app-theme-switcher-bg: rgba(255, 255, 255, 0.92);
   --app-theme-switcher-border: rgba(15, 23, 42, 0.08);
@@ -80,8 +81,7 @@
   --app-card-shell-radius: 20px;
   --app-card-shell-border: rgba(15, 23, 42, 0.08);
   --app-card-shell-shadow:
-    0 16px 36px rgba(15, 23, 42, 0.06),
-    0 1px 0 rgba(255, 255, 255, 0.82) inset;
+    0 16px 36px rgba(15, 23, 42, 0.06), 0 1px 0 rgba(255, 255, 255, 0.82) inset;
   --app-card-shell-highlight: rgba(255, 255, 255, 0.62);
   --app-card-shell-bg: linear-gradient(
     180deg,
@@ -90,8 +90,7 @@
   );
   --dashboard-panel-border: var(--app-card-shell-border);
   --dashboard-panel-shadow:
-    0 16px 36px rgba(15, 23, 42, 0.08),
-    0 1px 0 rgba(255, 255, 255, 0.82) inset;
+    0 16px 36px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255, 255, 255, 0.82) inset;
   --dashboard-panel-highlight: var(--app-card-shell-highlight);
   --dashboard-card-title: rgba(55, 65, 81, 0.84);
   --dashboard-card-value: #111827;
@@ -129,8 +128,7 @@
   --auth-toggle-active-bg: #0f172a;
   --auth-toggle-active-text: #ffffff;
   --auth-shadow:
-    0 26px 72px rgba(15, 23, 42, 0.12),
-    0 1px 0 rgba(255, 255, 255, 0.62) inset;
+    0 26px 72px rgba(15, 23, 42, 0.12), 0 1px 0 rgba(255, 255, 255, 0.62) inset;
 
   --app-accent: #2563eb;
   --app-accent-light: rgba(37, 99, 235, 0.12);
@@ -150,16 +148,14 @@ html.dark {
   --app-surface-solid: #0f172a;
   --app-border: rgba(148, 163, 184, 0.16);
   --app-shadow:
-    0 1px 2px rgba(2, 6, 23, 0.28),
-    0 24px 52px rgba(2, 6, 23, 0.42);
+    0 1px 2px rgba(2, 6, 23, 0.28), 0 24px 52px rgba(2, 6, 23, 0.42);
   --app-panel: #08101d;
   --app-card: #111b31;
   --app-card-muted: rgba(148, 163, 184, 0.08);
   --app-header-shell-bg: rgba(11, 18, 32, 0.84);
   --app-header-shell-border: rgba(148, 163, 184, 0.18);
   --app-header-shell-shadow:
-    0 12px 32px rgba(2, 6, 23, 0.48),
-    0 1px 0 rgba(255, 255, 255, 0.03) inset;
+    0 12px 32px rgba(2, 6, 23, 0.48), 0 1px 0 rgba(255, 255, 255, 0.03) inset;
   --app-console-frame-bg: color-mix(in srgb, var(--app-panel) 88%, black 12%);
   --app-console-sidebar-bg: color-mix(
     in srgb,
@@ -182,8 +178,7 @@ html.dark {
     rgba(255, 255, 255, 0.06) 24%
   );
   --app-console-shell-shadow:
-    0 24px 52px rgba(2, 6, 23, 0.42),
-    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+    0 24px 52px rgba(2, 6, 23, 0.42), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
   --app-console-shell-divider: rgba(148, 163, 184, 0.12);
   --app-theme-switcher-bg: rgba(15, 23, 42, 0.9);
   --app-theme-switcher-border: rgba(148, 163, 184, 0.18);
@@ -198,8 +193,7 @@ html.dark {
   --app-card-shell-radius: 20px;
   --app-card-shell-border: rgba(148, 163, 184, 0.16);
   --app-card-shell-shadow:
-    0 20px 44px rgba(2, 6, 23, 0.38),
-    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+    0 20px 44px rgba(2, 6, 23, 0.38), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
   --app-card-shell-highlight: rgba(255, 255, 255, 0.05);
   --app-card-shell-bg: linear-gradient(
     180deg,
@@ -208,8 +202,7 @@ html.dark {
   );
   --dashboard-panel-border: var(--app-card-shell-border);
   --dashboard-panel-shadow:
-    0 20px 44px rgba(2, 6, 23, 0.38),
-    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+    0 20px 44px rgba(2, 6, 23, 0.38), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
   --dashboard-panel-highlight: var(--app-card-shell-highlight);
   --dashboard-card-title: rgba(226, 232, 240, 0.74);
   --dashboard-card-value: rgba(248, 250, 252, 0.96);
@@ -247,8 +240,7 @@ html.dark {
   --auth-toggle-active-bg: #eff6ff;
   --auth-toggle-active-text: #0f172a;
   --auth-shadow:
-    0 36px 96px rgba(2, 6, 23, 0.44),
-    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+    0 36px 96px rgba(2, 6, 23, 0.44), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
 
   --app-accent: #60a5fa;
   --app-accent-light: rgba(96, 165, 250, 0.18);
@@ -268,14 +260,8 @@ body.sidebar-collapsed {
 
 body {
   font-family:
-    'Segoe UI Variable Text',
-    'SF Pro Text',
-    'PingFang SC',
-    'Hiragino Sans GB',
-    'Microsoft YaHei UI',
-    'Segoe UI',
-    'Microsoft YaHei',
-    sans-serif;
+    'Segoe UI Variable Text', 'SF Pro Text', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei UI', 'Segoe UI', 'Microsoft YaHei', sans-serif;
   color: var(--semi-color-text-0);
   background-color: var(--app-bg);
   overflow-y: auto;
@@ -331,8 +317,8 @@ body {
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family:
+    source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
 /* ==================== App Shell Utilities ==================== */
@@ -382,8 +368,16 @@ code {
 
 .app-shell--auth {
   background:
-    radial-gradient(circle at 18% 22%, var(--auth-glow-secondary), transparent 28%),
-    radial-gradient(circle at 82% 78%, var(--auth-glow-primary), transparent 26%),
+    radial-gradient(
+      circle at 18% 22%,
+      var(--auth-glow-secondary),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 82% 78%,
+      var(--auth-glow-primary),
+      transparent 26%
+    ),
     linear-gradient(180deg, var(--auth-bg-start) 0%, var(--auth-bg-end) 100%);
 }
 
@@ -452,6 +446,10 @@ html.dark .app-header--auth .app-header-shell {
   opacity: 1;
 }
 
+.app-header:not(.app-header--auth)::before {
+  display: none;
+}
+
 .app-header-shell {
   min-height: 50px;
   display: flex;
@@ -500,24 +498,7 @@ html.dark .app-header--auth .app-header-shell {
 }
 
 html.dark .app-console-frame::before {
-  content: '';
-  position: absolute;
-  top: 20px;
-  bottom: 20px;
-  left: calc(var(--sidebar-current-width) + 18px);
-  width: 1px;
-  border-radius: 9999px;
-  /* 用一条极淡的中轴线把左右两块容器的分隔关系说清楚，弱化圆角边框在暗色下的断裂感 */
-  background: linear-gradient(
-    180deg,
-    transparent 0%,
-    var(--app-console-shell-divider) 16%,
-    color-mix(in srgb, var(--app-console-shell-divider) 84%, white 16%) 50%,
-    var(--app-console-shell-divider) 84%,
-    transparent 100%
-  );
-  opacity: 0.72;
-  pointer-events: none;
+  content: none;
 }
 
 @media (max-width: 767px) {
@@ -530,8 +511,8 @@ html.dark .app-console-frame::before {
   border-right: 1px solid var(--app-border);
   background: var(--app-console-drawer-bg);
   box-shadow: var(--app-shadow);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .app-surface {
@@ -712,7 +693,11 @@ html.dark .app-nav-link.is-active {
 
 .app-header-icon-button:hover,
 .app-header-icon-button:focus-visible {
-  border-color: color-mix(in srgb, var(--app-accent) 16%, var(--app-border)) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--app-accent) 16%,
+    var(--app-border)
+  ) !important;
   background: var(--app-control-bg-hover) !important;
   color: var(--semi-color-text-0) !important;
 }
@@ -733,7 +718,11 @@ html.dark .app-nav-link.is-active {
 
 .app-header-user-trigger:hover,
 .app-header-user-trigger:focus-visible {
-  border-color: color-mix(in srgb, var(--app-accent) 16%, var(--app-border)) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--app-accent) 16%,
+    var(--app-border)
+  ) !important;
   background: var(--app-control-bg-hover) !important;
 }
 
@@ -750,8 +739,8 @@ html.dark .app-nav-link.is-active {
 .app-user-menu {
   border: 1px solid var(--app-card-shell-border) !important;
   border-radius: 14px !important;
-  background: var(--app-card-shell-bg) !important;
-  box-shadow: var(--app-card-shell-shadow) !important;
+  background: var(--app-card) !important;
+  box-shadow: none !important;
   overflow: hidden;
 }
 
@@ -776,8 +765,8 @@ html.dark .app-nav-link.is-active {
   overflow: hidden;
   border: 1px solid var(--dashboard-panel-border);
   box-shadow: var(--dashboard-panel-shadow);
-  -webkit-backdrop-filter: blur(18px);
-  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .dashboard-stat-card {
@@ -858,10 +847,12 @@ html.dark .app-nav-link.is-active {
       var(--dashboard-panel-border) 78%,
       var(--dashboard-card-accent) 22%
     );
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%),
-    color-mix(in srgb, var(--app-card-muted) 86%, var(--dashboard-card-accent-soft) 14%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  background: color-mix(
+    in srgb,
+    var(--app-card-muted) 86%,
+    var(--dashboard-card-accent-soft) 14%
+  );
+  box-shadow: none;
 }
 
 .dashboard-stat-card__subitem::before {
@@ -869,11 +860,7 @@ html.dark .app-nav-link.is-active {
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--dashboard-card-accent) 88%, white 12%) 0%,
-    color-mix(in srgb, var(--dashboard-card-accent) 54%, transparent 46%) 100%
-  );
+  background: var(--dashboard-card-accent);
   opacity: 0.95;
 }
 
@@ -882,13 +869,7 @@ html.dark .app-nav-link.is-active {
 }
 
 .dashboard-chart-panel {
-  background:
-    linear-gradient(180deg, var(--dashboard-panel-highlight) 0%, transparent 18%),
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--app-card) 94%, white 6%) 0%,
-      color-mix(in srgb, var(--app-card) 98%, transparent 2%) 100%
-    );
+  background: var(--app-card);
 }
 
 .dashboard-panel-header {
@@ -896,20 +877,7 @@ html.dark .app-nav-link.is-active {
 }
 
 .dashboard-panel-header::after {
-  content: '';
-  position: absolute;
-  left: 20px;
-  right: 20px;
-  bottom: 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    color-mix(in srgb, var(--dashboard-panel-border) 65%, white 35%) 18%,
-    color-mix(in srgb, var(--dashboard-panel-border) 88%, white 12%) 50%,
-    color-mix(in srgb, var(--dashboard-panel-border) 65%, white 35%) 82%,
-    transparent 100%
-  );
+  content: none;
 }
 
 .dashboard-chart-toolbar {
@@ -977,24 +945,20 @@ html.dark .app-nav-link.is-active {
 .dashboard-chart-surface {
   border: 1px solid var(--dashboard-panel-border);
   background: var(--dashboard-chart-surface-bg);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  box-shadow: none;
 }
 
 /* 统一仪表盘内列表卡片层次，提升留白与精致感。 */
 .dashboard-info-card {
   position: relative;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--dashboard-panel-border) 78%, white 22%);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, transparent 100%),
-    color-mix(in srgb, var(--app-card-muted) 88%, var(--app-card) 12%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    0 10px 24px rgba(15, 23, 42, 0.08);
+  border: 1px solid
+    color-mix(in srgb, var(--dashboard-panel-border) 78%, white 22%);
+  background: color-mix(in srgb, var(--app-card-muted) 88%, var(--app-card) 12%);
+  box-shadow: none;
   transition:
     border-color 180ms ease,
-    box-shadow 180ms ease,
-    transform 180ms ease;
+    background-color 180ms ease;
 }
 
 .dashboard-info-card::before {
@@ -1002,28 +966,28 @@ html.dark .app-nav-link.is-active {
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--app-accent) 80%, white 20%) 0%,
-    color-mix(in srgb, var(--app-accent) 24%, transparent 76%) 100%
-  );
+  background: var(--app-accent);
   opacity: 0.72;
 }
 
 .dashboard-info-card:hover {
-  border-color: color-mix(in srgb, var(--app-accent) 28%, var(--dashboard-panel-border) 72%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 14px 30px rgba(15, 23, 42, 0.1);
-  transform: translateY(-1px);
+  border-color: color-mix(
+    in srgb,
+    var(--app-accent) 28%,
+    var(--dashboard-panel-border) 72%
+  );
+  box-shadow: none;
+  transform: none;
 }
 
 .dashboard-info-card--static,
 .dashboard-info-card--static:hover {
-  border-color: color-mix(in srgb, var(--dashboard-panel-border) 78%, white 22%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    0 10px 24px rgba(15, 23, 42, 0.08);
+  border-color: color-mix(
+    in srgb,
+    var(--dashboard-panel-border) 78%,
+    white 22%
+  );
+  box-shadow: none;
   transform: none;
 }
 
@@ -1043,16 +1007,22 @@ html.dark .app-nav-link.is-active {
 /* 订阅记录卡片改为更轻的层次，同时压缩高度。 */
 .my-subscription-page .subscription-record-item,
 .my-subscription-page .subscription-record-item:hover {
-  border-color: color-mix(in srgb, var(--dashboard-panel-border) 70%, white 30%);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%),
-    color-mix(in srgb, var(--app-card-muted) 78%, var(--app-card) 22%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  border-color: color-mix(
+    in srgb,
+    var(--dashboard-panel-border) 70%,
+    white 30%
+  );
+  background: color-mix(in srgb, var(--app-card-muted) 78%, var(--app-card) 22%);
+  box-shadow: none;
 }
 
 .my-subscription-page .subscription-record-item::before {
   width: 2px;
   opacity: 0.46;
+}
+
+.app-shell .subscription-store-list .semi-card-body {
+  padding: 0 !important;
 }
 
 .dashboard-chart-canvas {
@@ -1066,41 +1036,35 @@ html.dark .app-nav-link.is-active {
 
 html.dark .dashboard-stat-card__subitem,
 html.dark .dashboard-chart-surface {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: none;
 }
 
 html.dark .dashboard-info-card {
   border-color: color-mix(in srgb, var(--dashboard-panel-border) 92%, white 8%);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%),
-    color-mix(in srgb, var(--app-card-muted) 82%, #12161e 18%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 14px 28px rgba(0, 0, 0, 0.22);
+  background: color-mix(in srgb, var(--app-card-muted) 82%, #12161e 18%);
+  box-shadow: none;
 }
 
 html.dark .dashboard-info-card:hover {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 18px 34px rgba(0, 0, 0, 0.3);
+  box-shadow: none;
 }
 
 html.dark .dashboard-info-card--static,
 html.dark .dashboard-info-card--static:hover {
   border-color: color-mix(in srgb, var(--dashboard-panel-border) 92%, white 8%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 14px 28px rgba(0, 0, 0, 0.22);
+  box-shadow: none;
   transform: none;
 }
 
 html.dark .my-subscription-page .subscription-record-item,
 html.dark .my-subscription-page .subscription-record-item:hover {
-  border-color: color-mix(in srgb, var(--dashboard-panel-border) 88%, white 12%);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%),
-    color-mix(in srgb, var(--app-card-muted) 76%, #11151d 24%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  border-color: color-mix(
+    in srgb,
+    var(--dashboard-panel-border) 88%,
+    white 12%
+  );
+  background: color-mix(in srgb, var(--app-card-muted) 76%, #11151d 24%);
+  box-shadow: none;
 }
 
 @media (min-width: 768px) {
@@ -1405,12 +1369,11 @@ html.dark .app-surface-solid {
   padding: 28px;
   border: 1px solid var(--auth-border);
   border-radius: 32px;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--auth-surface-strong) 86%, white 14%) 0%,
-      color-mix(in srgb, var(--auth-surface) 92%, white 8%) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--auth-surface-strong) 86%, white 14%) 0%,
+    color-mix(in srgb, var(--auth-surface) 92%, white 8%) 100%
+  );
   box-shadow: var(--auth-shadow) !important;
   -webkit-backdrop-filter: blur(22px);
   backdrop-filter: blur(22px);
@@ -1422,7 +1385,11 @@ html.dark .app-surface-solid {
   inset: 0;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, transparent 24%),
-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.48), transparent 34%);
+    radial-gradient(
+      circle at top right,
+      rgba(255, 255, 255, 0.48),
+      transparent 34%
+    );
   pointer-events: none;
 }
 
@@ -1508,7 +1475,8 @@ html.dark .app-surface-solid {
     var(--auth-button-bg) 76%,
     var(--auth-input-border) 24%
   );
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--auth-button-bg) 16%, transparent);
+  box-shadow: 0 0 0 4px
+    color-mix(in srgb, var(--auth-button-bg) 16%, transparent);
   transform: translateY(-1px);
 }
 
@@ -1555,29 +1523,54 @@ html.dark .app-surface-solid {
   .semi-input-wrapper
   .semi-input:hover
   + .semi-input-clearbtn,
-.auth-shell__content .semi-input-wrapper .semi-input:hover ~ .semi-input-modebtn,
+.auth-shell__content
+  .semi-input-wrapper
+  .semi-input:hover
+  ~ .semi-input-modebtn,
 .auth-shell__content
   .semi-input-wrapper
   .semi-input:focus
   + .semi-input-clearbtn,
-.auth-shell__content .semi-input-wrapper .semi-input:focus ~ .semi-input-modebtn,
+.auth-shell__content
+  .semi-input-wrapper
+  .semi-input:focus
+  ~ .semi-input-modebtn,
 .auth-shell__content
   .semi-input-wrapper
   .semi-input:active
   + .semi-input-clearbtn,
-.auth-shell__content .semi-input-wrapper .semi-input:active ~ .semi-input-modebtn {
+.auth-shell__content
+  .semi-input-wrapper
+  .semi-input:active
+  ~ .semi-input-modebtn {
   background: transparent !important;
   box-shadow: none !important;
 }
 
-.auth-shell__content .semi-input-wrapper.semi-input-wrapper__with-prepend .semi-input,
-.auth-shell__content .semi-input-wrapper.semi-input-wrapper__with-prepend .semi-input:hover,
-.auth-shell__content .semi-input-wrapper.semi-input-wrapper__with-prepend .semi-input:focus,
-.auth-shell__content .semi-input-wrapper.semi-input-wrapper__with-prepend .semi-input:active,
-.auth-shell__content .semi-input-wrapper.semi-input-wrapper__with-append .semi-input,
-.auth-shell__content .semi-input-wrapper.semi-input-wrapper__with-append .semi-input:hover,
-.auth-shell__content .semi-input-wrapper.semi-input-wrapper__with-append .semi-input:focus,
-.auth-shell__content .semi-input-wrapper.semi-input-wrapper__with-append .semi-input:active,
+.auth-shell__content
+  .semi-input-wrapper.semi-input-wrapper__with-prepend
+  .semi-input,
+.auth-shell__content
+  .semi-input-wrapper.semi-input-wrapper__with-prepend
+  .semi-input:hover,
+.auth-shell__content
+  .semi-input-wrapper.semi-input-wrapper__with-prepend
+  .semi-input:focus,
+.auth-shell__content
+  .semi-input-wrapper.semi-input-wrapper__with-prepend
+  .semi-input:active,
+.auth-shell__content
+  .semi-input-wrapper.semi-input-wrapper__with-append
+  .semi-input,
+.auth-shell__content
+  .semi-input-wrapper.semi-input-wrapper__with-append
+  .semi-input:hover,
+.auth-shell__content
+  .semi-input-wrapper.semi-input-wrapper__with-append
+  .semi-input:focus,
+.auth-shell__content
+  .semi-input-wrapper.semi-input-wrapper__with-append
+  .semi-input:active,
 .auth-shell__content
   .semi-input-wrapper.semi-input-wrapper__with-prepend
   .semi-input-modebtn,
@@ -1703,7 +1696,9 @@ html.dark .app-surface-solid {
 }
 
 .auth-shell__content
-  .semi-button-size-large:not(.semi-button-primary):not(.semi-button-borderless) {
+  .semi-button-size-large:not(.semi-button-primary):not(
+    .semi-button-borderless
+  ) {
   border: 1px solid color-mix(in srgb, var(--auth-input-border) 85%, white 15%);
   background: color-mix(in srgb, var(--auth-input-bg) 76%, white 24%);
   color: var(--auth-text-primary);
@@ -1713,7 +1708,9 @@ html.dark .app-surface-solid {
 }
 
 .auth-shell__content
-  .semi-button-size-large:not(.semi-button-primary):not(.semi-button-borderless):hover {
+  .semi-button-size-large:not(.semi-button-primary):not(
+    .semi-button-borderless
+  ):hover {
   border-color: color-mix(
     in srgb,
     var(--auth-input-border) 60%,
@@ -1735,11 +1732,12 @@ html.dark .app-surface-solid {
 
 .auth-shell__content .semi-banner {
   border-radius: 20px;
-  border: 1px solid color-mix(
-    in srgb,
-    var(--semi-color-danger-light-default) 54%,
-    var(--auth-border) 46%
-  );
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--semi-color-danger-light-default) 54%,
+      var(--auth-border) 46%
+    );
   background: color-mix(
     in srgb,
     var(--semi-color-danger-light-default) 34%,
@@ -1768,14 +1766,21 @@ html.dark .auth-shell__method-chip {
 }
 
 html.dark .auth-shell__panel {
-  background:
-    linear-gradient(180deg, rgba(18, 22, 30, 0.96) 0%, rgba(12, 16, 23, 0.98) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(18, 22, 30, 0.96) 0%,
+    rgba(12, 16, 23, 0.98) 100%
+  );
 }
 
 html.dark .auth-shell__panel::before {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 24%),
-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.07), transparent 34%);
+    radial-gradient(
+      circle at top right,
+      rgba(255, 255, 255, 0.07),
+      transparent 34%
+    );
 }
 
 html.dark .auth-shell__content .semi-button-primary.semi-button-size-large {
@@ -1784,7 +1789,9 @@ html.dark .auth-shell__content .semi-button-primary.semi-button-size-large {
 
 html.dark
   .auth-shell__content
-  .semi-button-size-large:not(.semi-button-primary):not(.semi-button-borderless) {
+  .semi-button-size-large:not(.semi-button-primary):not(
+    .semi-button-borderless
+  ) {
   background: rgba(18, 22, 30, 0.7);
   box-shadow:
     0 14px 28px rgba(0, 0, 0, 0.22),
@@ -1909,15 +1916,54 @@ html.dark
   background: var(--app-bg);
 }
 
+.app-shell:not(.app-shell--auth) {
+  --app-shadow: none;
+  --app-header-shell-shadow: none;
+  --app-console-shell-shadow: none;
+  --app-theme-switcher-shadow: none;
+  --app-card-shell-shadow: none;
+  --app-card-shell-highlight: transparent;
+  --app-card-shell-bg: var(--app-card);
+  --dashboard-panel-shadow: none;
+  --dashboard-panel-highlight: transparent;
+  --dashboard-chart-surface-bg: var(--app-card);
+  --dashboard-shell-glow-primary: transparent;
+  --dashboard-shell-glow-secondary: transparent;
+}
+
 .app-shell.app-shell--auth {
   background:
-    radial-gradient(circle at 18% 22%, var(--auth-glow-secondary), transparent 28%),
-    radial-gradient(circle at 82% 78%, var(--auth-glow-primary), transparent 26%),
+    radial-gradient(
+      circle at 18% 22%,
+      var(--auth-glow-secondary),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 82% 78%,
+      var(--auth-glow-primary),
+      transparent 26%
+    ),
     linear-gradient(180deg, var(--auth-bg-start) 0%, var(--auth-bg-end) 100%);
 }
 
 html.dark .app-shell {
   background: var(--app-bg);
+}
+
+.app-shell:not(.app-shell--auth) [class*='shadow-'] {
+  --tw-shadow: 0 0 #0000 !important;
+  --tw-shadow-colored: 0 0 #0000 !important;
+  box-shadow: none !important;
+}
+
+.app-shell:not(.app-shell--auth) [class*='drop-shadow'] {
+  --tw-drop-shadow: drop-shadow(0 0 #0000) !important;
+  filter: none !important;
+}
+
+.app-shell:not(.app-shell--auth) .blur-ball,
+.app-shell:not(.app-shell--auth) .with-pastel-balls::before {
+  display: none !important;
 }
 
 .app-shell .semi-layout,
@@ -1953,36 +1999,28 @@ html.dark .app-shell {
   border: 1px solid var(--app-accent);
   background: var(--app-accent);
   color: #ffffff;
-  box-shadow:
-    0 10px 20px rgba(37, 99, 235, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  box-shadow: none;
 }
 
 .app-shell .semi-button-primary:hover {
   background: var(--app-accent-hover);
   border-color: var(--app-accent-hover);
-  transform: translateY(-1px);
-  box-shadow:
-    0 14px 24px rgba(37, 99, 235, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  transform: none;
+  box-shadow: none;
 }
 
 html.dark .app-shell .semi-button-primary {
   border-color: var(--app-accent);
   background: var(--app-accent);
   color: #08111d;
-  box-shadow:
-    0 10px 22px rgba(96, 165, 250, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  box-shadow: none;
 }
 
 html.dark .app-shell .semi-button-primary:hover {
   background: var(--app-accent-hover);
   border-color: var(--app-accent-hover);
-  transform: translateY(-1px);
-  box-shadow:
-    0 14px 28px rgba(96, 165, 250, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transform: none;
+  box-shadow: none;
 }
 
 .app-shell .semi-button-secondary:not(.semi-button-borderless),
@@ -1998,14 +2036,19 @@ html.dark .app-shell .semi-button-primary:hover {
   background: var(--app-control-bg-hover);
 }
 
-.app-shell .semi-button-borderless:not(.app-header-icon-button):not(.app-header-user-trigger) {
+.app-shell
+  .semi-button-borderless:not(.app-header-icon-button):not(
+    .app-header-user-trigger
+  ) {
   border-color: transparent !important;
   background: transparent !important;
   box-shadow: none !important;
 }
 
 .app-shell
-  .semi-button-borderless:not(.app-header-icon-button):not(.app-header-user-trigger):hover {
+  .semi-button-borderless:not(.app-header-icon-button):not(
+    .app-header-user-trigger
+  ):hover {
   background: var(--app-control-bg) !important;
 }
 
@@ -2128,12 +2171,12 @@ html.dark .app-shell .semi-select-open {
   background: var(--app-surface-solid);
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius-lg);
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
+  box-shadow: none;
 }
 
 html.dark .app-shell .semi-modal-content {
   background: #1c1c1e;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  box-shadow: none;
 }
 
 .app-shell .semi-modal-header {
@@ -2171,17 +2214,16 @@ html.dark .app-shell .semi-modal-content {
 }
 
 .token-create-modal__selector-shell {
-  border: 1px solid color-mix(in srgb, var(--dashboard-panel-border) 72%, white 28%);
+  border: 1px solid
+    color-mix(in srgb, var(--dashboard-panel-border) 72%, white 28%);
   border-radius: 20px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%),
-    color-mix(in srgb, var(--app-card-muted) 80%, var(--app-card) 20%);
+  background: color-mix(in srgb, var(--app-card-muted) 80%, var(--app-card) 20%);
   padding: 18px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  box-shadow: none;
 }
 
 html.dark .token-create-modal__selector-shell {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: none;
 }
 
 .semi-toast-wrapper {
@@ -2196,13 +2238,11 @@ html.dark .token-create-modal__selector-shell {
   max-width: min(440px, calc(100vw - 32px));
   border: 1px solid color-mix(in srgb, var(--app-border) 88%, transparent);
   border-radius: 18px;
-  background: color-mix(in srgb, var(--app-surface-solid) 84%, white 16%);
-  box-shadow:
-    0 18px 44px rgba(31, 28, 23, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.48);
+  background: var(--app-surface-solid);
+  box-shadow: none;
   color: var(--semi-color-text-0);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
-  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .semi-toast-content .semi-toast-content-text {
@@ -2216,54 +2256,100 @@ html.dark .token-create-modal__selector-shell {
 
 .semi-toast.semi-toast-error .semi-toast-content,
 .semi-toast.semi-toast-light.semi-toast-error .semi-toast-content {
-  background: color-mix(in srgb, var(--semi-color-danger-light-default) 78%, var(--app-surface-solid));
-  border-color: color-mix(in srgb, var(--semi-color-danger) 34%, var(--app-border));
+  background: color-mix(
+    in srgb,
+    var(--semi-color-danger-light-default) 78%,
+    var(--app-surface-solid)
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--semi-color-danger) 34%,
+    var(--app-border)
+  );
 }
 
 .semi-toast.semi-toast-success .semi-toast-content,
 .semi-toast.semi-toast-light.semi-toast-success .semi-toast-content {
-  background: color-mix(in srgb, var(--semi-color-success-light-default) 78%, var(--app-surface-solid));
-  border-color: color-mix(in srgb, var(--semi-color-success) 34%, var(--app-border));
+  background: color-mix(
+    in srgb,
+    var(--semi-color-success-light-default) 78%,
+    var(--app-surface-solid)
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--semi-color-success) 34%,
+    var(--app-border)
+  );
 }
 
 .semi-toast.semi-toast-warning .semi-toast-content,
 .semi-toast.semi-toast-light.semi-toast-warning .semi-toast-content {
-  background: color-mix(in srgb, var(--semi-color-warning-light-default) 78%, var(--app-surface-solid));
-  border-color: color-mix(in srgb, var(--semi-color-warning) 34%, var(--app-border));
+  background: color-mix(
+    in srgb,
+    var(--semi-color-warning-light-default) 78%,
+    var(--app-surface-solid)
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--semi-color-warning) 34%,
+    var(--app-border)
+  );
 }
 
 .semi-toast.semi-toast-info .semi-toast-content,
 .semi-toast.semi-toast-light.semi-toast-info .semi-toast-content {
-  background: color-mix(in srgb, var(--semi-color-info-light-default) 78%, var(--app-surface-solid));
-  border-color: color-mix(in srgb, var(--semi-color-info) 34%, var(--app-border));
+  background: color-mix(
+    in srgb,
+    var(--semi-color-info-light-default) 78%,
+    var(--app-surface-solid)
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--semi-color-info) 34%,
+    var(--app-border)
+  );
 }
 
 html.dark .semi-toast-content {
   background: color-mix(in srgb, var(--app-surface-solid) 88%, black 12%);
   border-color: color-mix(in srgb, var(--app-border) 94%, transparent);
-  box-shadow:
-    0 22px 48px rgba(0, 0, 0, 0.36),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: none;
 }
 
 html.dark .semi-toast.semi-toast-error .semi-toast-content,
 html.dark .semi-toast.semi-toast-light.semi-toast-error .semi-toast-content {
-  background: color-mix(in srgb, var(--semi-color-danger-light-default) 18%, var(--app-surface-solid));
+  background: color-mix(
+    in srgb,
+    var(--semi-color-danger-light-default) 18%,
+    var(--app-surface-solid)
+  );
 }
 
 html.dark .semi-toast.semi-toast-success .semi-toast-content,
 html.dark .semi-toast.semi-toast-light.semi-toast-success .semi-toast-content {
-  background: color-mix(in srgb, var(--semi-color-success-light-default) 18%, var(--app-surface-solid));
+  background: color-mix(
+    in srgb,
+    var(--semi-color-success-light-default) 18%,
+    var(--app-surface-solid)
+  );
 }
 
 html.dark .semi-toast.semi-toast-warning .semi-toast-content,
 html.dark .semi-toast.semi-toast-light.semi-toast-warning .semi-toast-content {
-  background: color-mix(in srgb, var(--semi-color-warning-light-default) 18%, var(--app-surface-solid));
+  background: color-mix(
+    in srgb,
+    var(--semi-color-warning-light-default) 18%,
+    var(--app-surface-solid)
+  );
 }
 
 html.dark .semi-toast.semi-toast-info .semi-toast-content,
 html.dark .semi-toast.semi-toast-light.semi-toast-info .semi-toast-content {
-  background: color-mix(in srgb, var(--semi-color-info-light-default) 18%, var(--app-surface-solid));
+  background: color-mix(
+    in srgb,
+    var(--semi-color-info-light-default) 18%,
+    var(--app-surface-solid)
+  );
 }
 
 /* ==================== Data Surfaces (Tables / Tabs) ==================== */
@@ -2285,7 +2371,11 @@ html.dark .semi-toast.semi-toast-light.semi-toast-info .semi-toast-content {
 }
 
 .app-shell .semi-table thead tr th {
-  background: color-mix(in srgb, var(--app-card-muted) 74%, var(--app-card) 26%);
+  background: color-mix(
+    in srgb,
+    var(--app-card-muted) 74%,
+    var(--app-card) 26%
+  );
   border-bottom: 1px solid var(--app-border);
   font-size: 12px;
   font-weight: 600;
@@ -2371,6 +2461,15 @@ html.dark .app-shell .semi-tabs-tab-active {
 }
 
 .cardpro-borderless::before {
+  display: none;
+}
+
+.usage-logs-card {
+  background: transparent;
+  box-shadow: none;
+}
+
+.usage-logs-card::before {
   display: none;
 }
 
@@ -2497,13 +2596,13 @@ html.dark .metric-row {
 
 .metric-row:hover {
   border-color: var(--app-accent);
-  box-shadow: 0 0 0 3px var(--app-accent-light);
-  transform: translateY(-1px);
+  box-shadow: none;
+  transform: none;
 }
 
 html.dark .metric-row:hover {
   border-color: var(--app-accent);
-  box-shadow: 0 0 0 3px var(--app-accent-light);
+  box-shadow: none;
 }
 
 .metric-row:focus-visible {
@@ -2720,12 +2819,12 @@ html.dark .sidebar-container {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  padding: 8px 0 10px;
+  padding: 6px 0 8px;
 }
 
 .sidebar-nav-content::-webkit-scrollbar {
@@ -2736,12 +2835,12 @@ html.dark .sidebar-container {
 .rail-section {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .rail-section + .rail-section {
-  margin-top: 2px;
-  padding-top: 14px;
+  margin-top: 0;
+  padding-top: 10px;
   border-top: 1px solid color-mix(in srgb, var(--app-border) 80%, white 20%);
 }
 
@@ -2753,7 +2852,7 @@ html.dark .sidebar-container {
 
 .rail-section-label {
   display: block;
-  padding: 0 12px 6px;
+  padding: 0 12px 4px;
   color: var(--semi-color-text-2);
   font-size: 10px;
   font-weight: 700;
@@ -2766,9 +2865,9 @@ html.dark .sidebar-container {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 44px;
-  padding: 10px 12px;
-  border-radius: 14px;
+  min-height: 38px;
+  padding: 7px 10px;
+  border-radius: 12px;
   text-decoration: none;
   color: color-mix(in srgb, var(--semi-color-text-1) 90%, #334155 10%);
   background: transparent;
@@ -2809,9 +2908,9 @@ html.dark .rail-item-active {
 }
 
 .rail-icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2857,7 +2956,7 @@ html.dark .rail-label {
 .rail-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .rail-group-trigger {
@@ -2876,21 +2975,21 @@ html.dark .rail-label {
 }
 
 .rail-sublist {
-  margin-left: 14px;
-  padding-left: 14px;
+  margin-left: 13px;
+  padding-left: 12px;
   border-left: 1px solid color-mix(in srgb, var(--app-border) 82%, white 18%);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .rail-subitem {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 36px;
-  padding: 7px 10px;
-  border-radius: 12px;
+  min-height: 32px;
+  padding: 5px 9px;
+  border-radius: 10px;
   text-decoration: none;
   color: var(--semi-color-text-1);
   transition:
@@ -3230,9 +3329,25 @@ html.dark .sidebar-brand-text {
   font-size: 1.1em;
 }
 
+.app-footer-custom {
+  position: relative;
+  width: 100%;
+}
+
+.app-footer-custom-attribution {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 16px 18px;
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+}
+
 .app-footer-shell {
   border-top: 1px solid color-mix(in srgb, var(--app-border) 86%, white 14%);
-  padding-top: 28px;
+  padding-top: 24px;
 }
 
 .app-footer-card {
@@ -3240,7 +3355,22 @@ html.dark .sidebar-brand-text {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 10px 0 0;
+  padding: 6px 0 0;
+}
+
+.app-footer-brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-footer-content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
 }
 
 .app-footer-mark {
@@ -3249,25 +3379,19 @@ html.dark .sidebar-brand-text {
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--app-border) 86%, white 14%);
   border-radius: 14px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(243, 247, 252, 0.98) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.72),
-    0 10px 20px rgba(15, 23, 42, 0.08);
+  background: var(--app-card);
+  box-shadow: none;
 }
 
 html.dark .app-footer-mark {
-  background:
-    linear-gradient(180deg, rgba(17, 27, 49, 0.96) 0%, rgba(10, 18, 32, 0.98) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 12px 22px rgba(2, 6, 23, 0.3);
+  background: var(--app-card);
+  box-shadow: none;
 }
 
 .app-footer-title {
   font-size: 14px;
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   color: var(--semi-color-text-0);
 }
 
@@ -3281,7 +3405,8 @@ html.dark .app-footer-mark {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 .app-footer-link {
@@ -3296,10 +3421,35 @@ html.dark .app-footer-mark {
   color: var(--semi-color-text-0);
 }
 
+.app-footer-link--primary {
+  color: var(--semi-color-primary);
+}
+
+.app-footer-attribution {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+}
+
+.app-footer-separator {
+  color: color-mix(in srgb, var(--semi-color-text-2) 42%, transparent);
+}
+
 @media (max-width: 767px) {
   .app-footer-card {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .app-footer-content,
+  .app-footer-attribution,
+  .app-footer-links {
+    align-items: flex-start;
+    justify-content: flex-start;
   }
 }
 
@@ -3314,13 +3464,12 @@ html.dark .app-footer-mark {
   left: 0;
   right: 0;
   height: 44px;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0) 0%,
-      rgba(255, 255, 255, 0.78) 55%,
-      var(--semi-color-bg-1) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.78) 55%,
+    var(--semi-color-bg-1) 100%
+  );
   pointer-events: none;
   z-index: 2;
   opacity: 0;
@@ -3328,13 +3477,12 @@ html.dark .app-footer-mark {
 }
 
 html[data-theme='dark'] .card-content-fade-indicator {
-  background:
-    linear-gradient(
-      180deg,
-      rgba(0, 0, 0, 0) 0%,
-      rgba(0, 0, 0, 0.55) 55%,
-      var(--semi-color-bg-1) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.55) 55%,
+    var(--semi-color-bg-1) 100%
+  );
 }
 
 /* ==================== 调试面板特定样式 ==================== */
@@ -3408,13 +3556,52 @@ html[data-theme='dark'] .card-content-fade-indicator {
   background: transparent;
 }
 
-.usage-logs-table .semi-table-tbody > .semi-table-row.semi-table-row-expand > .semi-table-row-cell {
+.usage-logs-table
+  .semi-table-tbody
+  > .semi-table-row.semi-table-row-expand
+  > .semi-table-row-cell {
   /* Expanded content should never affect the table's overall width (prevents "jitter" on expand). */
   overflow-x: hidden;
 }
 
+.usage-logs-card .cardpro-body {
+  border-radius: 0;
+}
+
+.usage-logs-table .semi-table-body {
+  scrollbar-gutter: auto;
+}
+
+html.dark .usage-logs-table,
+html.dark .usage-logs-table .semi-table-container,
+html.dark .usage-logs-table .semi-table-body,
+html.dark .usage-logs-table table,
+html.dark .usage-logs-table thead,
+html.dark .usage-logs-table thead tr,
+html.dark .usage-logs-table thead tr th,
+html.dark .usage-logs-table .semi-table-tbody,
+html.dark .usage-logs-table .semi-table-row,
+html.dark .usage-logs-table .semi-table-row-cell {
+  background: transparent !important;
+}
+
+.usage-logs-table .semi-table-thead > .semi-table-row > .semi-table-row-head {
+  border-bottom: 1px solid var(--app-border);
+}
+
+html.dark
+  .usage-logs-table
+  .semi-table-thead
+  > .semi-table-row
+  > .semi-table-row-head {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
 /* Desktop: hoverable rows when SideSheet is used */
-.usage-logs-table .semi-table-tbody > .semi-table-row:hover > .semi-table-row-cell {
+.usage-logs-table
+  .semi-table-tbody
+  > .semi-table-row:hover
+  > .semi-table-row-cell {
   background: var(--app-control-bg);
   transition: background 0.15s ease;
 }
@@ -3652,34 +3839,18 @@ html[data-theme='dark'] .card-content-fade-indicator {
 }
 
 .shine-text {
-  background: linear-gradient(
-    90deg,
-    currentColor 0%,
-    currentColor 40%,
-    rgba(255, 255, 255, 0.9) 50%,
-    currentColor 60%,
-    currentColor 100%
-  );
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: sweep-shine 4s linear infinite;
+  background: none;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+  -webkit-text-fill-color: currentColor;
+  animation: none;
 }
 
 .dark .shine-text {
-  background: linear-gradient(
-    90deg,
-    currentColor 0%,
-    currentColor 40%,
-    #facc15 50%,
-    currentColor 60%,
-    currentColor 100%
-  );
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  background: none;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+  -webkit-text-fill-color: currentColor;
 }
 
 /* ==================== 跳转定位高亮（渠道/实例） ==================== */
@@ -3799,11 +3970,8 @@ html:not(.dark) .blur-ball-teal {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background: radial-gradient(
-      circle at -5% -10%,
-      var(--pb1) 0%,
-      transparent 60%
-    ),
+  background:
+    radial-gradient(circle at -5% -10%, var(--pb1) 0%, transparent 60%),
     radial-gradient(circle at 105% -10%, var(--pb2) 0%, transparent 55%),
     radial-gradient(circle at 5% 110%, var(--pb3) 0%, transparent 55%),
     radial-gradient(circle at 105% 110%, var(--pb4) 0%, transparent 50%);
@@ -3843,6 +4011,10 @@ html.dark .with-pastel-balls::before {
 .table-scroll-card .cardpro-body {
   /* Prevent layout "jitter" when scrollbars appear/disappear (e.g. expanding a row). */
   scrollbar-gutter: stable;
+}
+
+.usage-logs-card .cardpro-body {
+  scrollbar-gutter: auto;
 }
 
 .table-scroll-card .cardpro-body::-webkit-scrollbar {
@@ -4027,7 +4199,7 @@ html.dark .pricing-search-header {
   background-color: #18181b;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--app-radius);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  box-shadow: none;
 }
 
 .semi-toast-icon,
@@ -4180,16 +4352,16 @@ html.dark .semi-select-option-selected {
   background: var(--app-surface-solid);
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: none;
 }
 
 html.dark .semi-popover-wrapper-content {
   background: #1c1c1e;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: none;
 }
 
 .semi-tooltip-wrapper-content {
   background: #18181b;
   border-radius: var(--app-radius-sm);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: none;
 }

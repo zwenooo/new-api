@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import HeaderBar from './headerbar';
 import SiderBar from './SiderBar';
 import App from '../../App';
+import FooterBar from './Footer';
 import { ToastContainer } from 'react-toastify';
 import React, { useContext, useEffect, useState } from 'react';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
@@ -60,8 +61,10 @@ const PageLayout = () => {
 
   const hasUser = Boolean(localStorage.getItem('user'));
   const isConsoleRoute = hasUser && location.pathname.startsWith('/console');
+  const isLogsRoute = location.pathname === '/console/log';
   const showDesktopSider = isConsoleRoute && !isMobile;
   const showMobileDrawer = isConsoleRoute && isMobile && drawerOpen;
+  const showFooter = !isConsoleRoute;
 
   useEffect(() => {
     if (!isConsoleRoute) {
@@ -145,12 +148,8 @@ const PageLayout = () => {
         className={`${isConsoleRoute ? 'flex flex-1 min-h-0 flex-col' : 'flex flex-col'}`.trim()}
       >
         {isConsoleRoute ? (
-          <div
-            className='flex flex-1 min-h-0 px-4 pb-8'
-          >
-            <div
-              className='app-console-frame flex w-full flex-1 min-h-0 flex-col gap-4 md:flex-row md:gap-5'
-            >
+          <div className='flex flex-1 min-h-0 px-4 pb-8'>
+            <div className='app-console-frame flex w-full flex-1 min-h-0 flex-col gap-4 md:flex-row md:gap-5'>
               {showDesktopSider && (
                 <aside className='app-console-sidebar-shell hidden h-full w-[var(--sidebar-current-width)] shrink-0 justify-between gap-10 px-4 py-4 md:flex md:flex-col'>
                   <SiderBar />
@@ -159,11 +158,11 @@ const PageLayout = () => {
 
               <div className='flex flex-1 min-w-0'>
                 <div
-                  className={`app-console-main flex w-full flex-1 flex-col gap-2 min-h-0 overflow-hidden ${shouldInnerPadding ? 'app-console-main--padded' : ''}`.trim()}
+                  className={`app-console-main flex w-full flex-1 flex-col gap-2 min-h-0 overflow-hidden ${
+                    shouldInnerPadding ? 'app-console-main--padded' : ''
+                  } ${isLogsRoute ? 'app-console-main--logs' : ''}`.trim()}
                 >
-                  <div
-                    className='console-scroll flex flex-1 min-h-0 flex-col overflow-y-auto scrollbar-hide'
-                  >
+                  <div className='console-scroll flex flex-1 min-h-0 flex-col overflow-y-auto scrollbar-hide'>
                     <App />
                   </div>
                 </div>
@@ -171,9 +170,12 @@ const PageLayout = () => {
             </div>
           </div>
         ) : (
-          <div className='flex-1 min-h-0'>
-            <App />
-          </div>
+          <>
+            <div className='flex-1 min-h-0'>
+              <App />
+            </div>
+            {showFooter && <FooterBar />}
+          </>
         )}
       </div>
 

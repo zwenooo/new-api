@@ -2054,5 +2054,5 @@ func buildSSHCommand(host string, port int, fallback int) string {
 			port = 1455
 		}
 	}
-	return fmt.Sprintf("ssh -4 -N -T -o ExitOnForwardFailure=yes -p 2222 -L 127.0.0.1:%[1]d:127.0.0.1:%[1]d -D 127.0.0.1:1080 root@%s", port, host)
+	return fmt.Sprintf("ssh -4 -N -T -o ExitOnForwardFailure=yes -p 2222 -L 127.0.0.1:%[1]d:127.0.0.1:%[1]d -D 127.0.0.1:1080 user@%s", port, host)
 }

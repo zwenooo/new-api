@@ -41,6 +41,8 @@ export default function SettingsMonitoring(props) {
     RetryTimes: 0,
     AutomaticSwitchStatusCodeWhitelist: '',
     AutomaticSwitchMaxRetries: 5,
+    ResponsesCapacityRetryEnabled: false,
+    ResponsesCapacityRetryKeywords: '',
     'monitor_setting.auto_test_channel_enabled': false,
     'monitor_setting.auto_test_channel_minutes': 10,
     'monitor_setting.service_status_default_range_days': 30,
@@ -333,6 +335,27 @@ export default function SettingsMonitoring(props) {
             <Row gutter={16}>
               <Col xs={24} sm={16}>
                 <Form.TextArea
+                  label={t('Responses 容量错误重试关键词')}
+                  placeholder={t(
+                    '一行一个，例如 server_is_overloaded 或 Selected model is at capacity',
+                  )}
+                  extraText={t(
+                    '仅在开启 Responses 容量错误自动重试后生效；匹配上游 error 的 code、type、message，不区分大小写',
+                  )}
+                  field={'ResponsesCapacityRetryKeywords'}
+                  autosize={{ minRows: 4, maxRows: 10 }}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      ResponsesCapacityRetryKeywords: value,
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col xs={24} sm={16}>
+                <Form.TextArea
                   label={t('自动禁用关键词')}
                   placeholder={t('一行一个，不区分大小写')}
                   extraText={t(
@@ -379,6 +402,24 @@ export default function SettingsMonitoring(props) {
                     setInputs({
                       ...inputs,
                       RetryTimes: parseInt(value),
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'ResponsesCapacityRetryEnabled'}
+                  label={t('Responses 容量错误自动重试')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  extraText={t(
+                    '当 /v1/responses 返回 Selected model is at capacity 等容量错误时，拦截后交给现有重试逻辑处理',
+                  )}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      ResponsesCapacityRetryEnabled: value,
                     })
                   }
                 />
